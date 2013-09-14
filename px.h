@@ -9,7 +9,7 @@ struct rgba {
 };
 
 struct palette {
-	int     texture;
+	GLuint  texture;
 	int     h;
 	int     size;
 	uint8_t *pixels;

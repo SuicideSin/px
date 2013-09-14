@@ -15,6 +15,7 @@
 
 #define rgba(r, g, b, a) ((struct rgba){r, g, b, a})
 #define WHITE            rgba(255, 255, 255, 255)
+#define TRANSPARENT      rgba(0, 0, 0, 0)
 
 static void canvasSetPixel(int x, int y, struct rgba color);
 static void paletteAddColor(int x, int y, struct rgba color);
@@ -309,8 +310,15 @@ static struct canvas *canvas(int w, int h)
 	c->pixels     = NULL;
 	c->texture    = 0;
 	c->zoom       = 1;
+	c->x          = 0;
+	c->y          = 0;
+	c->w          = w;
+	c->h          = h;
 	c->brush.size = 1;
-	c->dirty      = true;
+	c->dirty      = false;
+	c->draw.x     = -1;
+	c->draw.y     = -1;
+	c->draw.color = TRANSPARENT;
 
 	canvasReset(c);
 	canvasResize(c, w, h);
@@ -413,6 +421,12 @@ int main(void)
 	glDeleteFramebuffers(1, &fb->texture);
 	glfwDestroyWindow(window);
 	glfwTerminate();
+
+	free(c->pixels);
+	free(palette->pixels);
+	free(c);
+	free(fb);
+	free(palette);
 
 	exit(0);
 }
