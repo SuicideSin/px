@@ -4,4 +4,18 @@
 
     a minimalistic pixel & sprite editor
 
-    WORK IN PROGRESS
+    - WORK IN PROGRESS -
+
+RATIONALE
+
+I tried grafx2, mtPaint, pixen, photoshop, etc. The verdict: No Thanks. Put simply,
+they're built for novices and their workflow is inefficient, especially for animation.
+
+GOALS
+
+* Everything that can be controlled via the keyboard, is.
+* No GUI. In other words: Fuck GTK/Qt, it's OpenGL all the way down.
+* Designed with great care and love with pixel artists and animators in mind.
+* Optimized for advanced users. No hand-holding. Vi-like philosophy.
+* Small, hackable codebase. The aim is < 5KLOC. GLFW is the only dependency.
+
