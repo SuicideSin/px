@@ -17,7 +17,6 @@
 #define WHITE            rgba(255, 255, 255, 255)
 #define TRANSPARENT      rgba(0, 0, 0, 0)
 
-static void canvasSetPixel(int x, int y, struct rgba color);
 static void paletteAddColor(int x, int y, struct rgba color);
 static void setupPalette();
 
@@ -67,11 +66,83 @@ static void setPixel(uint8_t *data, int x, int y, int stride, struct rgba color)
 	*(struct rgba *)(&data[off]) = color;
 }
 
-static void canvasDraw(int x, int y)
+static void canvasDraw(struct canvas *c, int x, int y)
 {
-	if (canvasWithinBoundary(x, y)) {
-		canvasSetPixel(x, y, c->fg);
+	x -= c->x;
+	y -= c->y;
+
+	x /= c->zoom;
+	y /= c->zoom;
+
+	y += c->brush.size;
+
+	y = fb->h - y;
+
+	c->draw.prev = c->draw.curr;
+	c->draw.curr.x = x;
+	c->draw.curr.y = y;
+	c->dirty = true;
+}
+
+static void canvasRender(struct canvas *c)
+{
+	if (!c->dirty)
+		return;
+
+	glColor4ubv((GLubyte*)&c->fg);
+
+	int x = c->draw.curr.x,
+		y = c->draw.curr.y,
+		x1 = c->draw.prev.x,
+		y1 = c->draw.prev.y,
+		dx = abs(x1 - x),
+		dy = abs(y1 - y),
+		sx = x < x1 ? 1 : -1,
+		sy = y < y1 ? 1 : -1;
+
+	int err = dx - dy;
+	int s = c->brush.size;
+		
+	if (c->draw.drawing > DRAW_STARTED) {
+		for (;;) {
+			glRecti(x, y, x + s, y + s);
+
+			if (x == x1 && y == y1)
+				break;
+
+			int err2 = err * 2;
+
+			if (err2 > -dy) {
+				err -= dy;
+				x += sx;
+			}
+			if (x == x1 && y == y1) {
+				glRecti(x, y, x + s, y + s);
+				break;
+			}
+			if (err2 < dx) {
+				err += dx;
+				y += sy;
+			}
+		}
+	} else {
+		glRecti(x, y, x + s, y + s);
 	}
+	c->dirty = false;
+}
+
+static void canvasStartDrawing(int x, int y)
+{
+	if (!canvasWithinBoundary(x, y))
+		return;
+
+	canvasDraw(c, x, y);
+	c->draw.drawing = DRAW_STARTED;
+}
+
+static void canvasStopDrawing()
+{
+	c->draw.drawing = DRAW_ENDED;
 }
 
 static struct rgba sample(int x, int y)
@@ -90,35 +161,6 @@ static void setFgColor(struct rgba color)
 static void canvasPickColor(int x, int y)
 {
 	setFgColor(sample(x, y));
-}
-
-static void canvasSetPixel(int x, int y, struct rgba color)
-{
-	c->draw.x = x;
-	c->draw.y = y;
-	c->draw.color = color;
-	c->dirty = true;
-}
-
-static void drawPixel(int x, int y, struct rgba color)
-{
-	if (!c->dirty)
-		return;
-
-	x -= c->x;
-	y -= c->y;
-
-	x /= c->zoom;
-	y /= c->zoom;
-
-	y += c->brush.size;
-
-	y = fb->h - y;
-
-	glColor4ubv((GLubyte*)&color);
-	glRecti(x, y, x + c->brush.size, y + c->brush.size);
-
-	c->dirty = false;
 }
 
 static void paletteSetPixel(int x, int y, struct rgba color)
@@ -187,20 +229,21 @@ static void mouseButtonCallback(GLFWwindow *win, int button, int action, int mod
 		if (mods & GLFW_MOD_CONTROL) {
 			canvasPickColor(round(x), round(y));
 		} else {
-			canvasDraw(floor(x), floor(y));
+			canvasStartDrawing(floor(x), floor(y));
 		}
+	} else if (action == GLFW_RELEASE) {
+		canvasStopDrawing();
 	}
 }
 
 static void cursorPosCallback(GLFWwindow *win, double fx, double fy)
 {
-	int action = glfwGetMouseButton(win, GLFW_MOUSE_BUTTON_1);
-
 	int x = floor(fx),
 		y = floor(fy);
 
-	if (action == GLFW_PRESS) {
-		canvasDraw(x, y);
+	if (c->draw.drawing == DRAW_STARTED || c->draw.drawing == DRAW_DRAWING) {
+		canvasDraw(c, x, y);
+		c->draw.drawing = DRAW_DRAWING;
 	}
 }
 
@@ -307,18 +350,21 @@ static struct canvas *canvas(int w, int h)
 {
 	struct canvas *c = malloc(sizeof(*c));
 
-	c->pixels     = NULL;
-	c->texture    = 0;
-	c->zoom       = 1;
-	c->x          = 0;
-	c->y          = 0;
-	c->w          = w;
-	c->h          = h;
-	c->brush.size = 1;
-	c->dirty      = false;
-	c->draw.x     = -1;
-	c->draw.y     = -1;
-	c->draw.color = TRANSPARENT;
+	c->pixels       = NULL;
+	c->texture      = 0;
+	c->zoom         = 1;
+	c->x            = 0;
+	c->y            = 0;
+	c->w            = w;
+	c->h            = h;
+	c->brush.size   = 1;
+	c->dirty        = false;
+	c->draw.prev.x  = -1;
+	c->draw.prev.y  = -1;
+	c->draw.curr.x  = -1;
+	c->draw.curr.y  = -1;
+	c->draw.drawing = false;
+	c->draw.color   = TRANSPARENT;
 
 	canvasReset(c);
 	canvasResize(c, w, h);
@@ -394,7 +440,7 @@ int main(void)
 
 		glPushMatrix(); {
 			glBindFramebuffer(GL_FRAMEBUFFER, fb->texture);
-			drawPixel(c->draw.x, c->draw.y, c->draw.color);
+			canvasRender(c);
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 			glClear(GL_COLOR_BUFFER_BIT);

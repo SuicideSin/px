@@ -19,10 +19,22 @@ struct brush {
 	int size;
 };
 
+struct point {
+	int x;
+	int y;
+};
+
+enum dstate {
+	DRAW_STARTED = 1,
+	DRAW_DRAWING = 2,
+	DRAW_ENDED = 3
+};
+
 struct draw {
-	int         x;
-	int         y;
-	struct rgba color;
+	enum dstate  drawing;
+	struct rgba  color;
+	struct point curr;
+	struct point prev;
 };
 
 struct canvas {
