@@ -39,6 +39,7 @@ struct draw {
 
 struct sprite {
 	GLuint        texture;
+	GLuint        fb;
 	uint8_t       *pixels;
 	bool          dirty;
 	int           fw;
@@ -48,6 +49,8 @@ struct sprite {
 };
 
 struct session {
+	int           w;
+	int           h;
 	int           x;
 	int           y;
 	int           offx;
@@ -60,10 +63,3 @@ struct session {
 	struct rgba   fg;
 	struct rgba   bg;
 };
-
-struct framebuffer {
-	int    w;
-	int    h;
-	GLuint texture;
-};
-

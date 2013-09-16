@@ -22,13 +22,18 @@ static void paletteAddColor(int x, int y, struct rgba color);
 static void setupPalette();
 
 struct session     *session;
-struct framebuffer *fb;
 struct palette     *palette;
 
 static void fbClear()
 {
 	glClear(GL_COLOR_BUFFER_BIT);
 	glClearColor(0.0, 0.0, 0.0, 1.0);
+}
+
+static void fbAttach(GLuint fb, GLuint tex)
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, fb);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
 }
 
 static void errorCallback(int error, const char* description)
@@ -61,6 +66,7 @@ static struct sprite sprite(int w, int h)
 	struct sprite s = (struct sprite){
 		.pixels       = NULL,
 		.texture      = 0,
+		.fb           = 0,
 		.dirty        = false,
 		.draw.prev.x  = -1,
 		.draw.prev.y  = -1,
@@ -72,6 +78,7 @@ static struct sprite sprite(int w, int h)
 		.fh           = h,
 		.nframes      = 0
 	};
+	glGenFramebuffers(1, &s.fb);
 	spriteResizeFrame(&s, w, h);
 
 	return s;
@@ -93,6 +100,7 @@ static void createFrame(int _pos)
 		glDeleteTextures(1, &s->texture);
 
 	s->texture = textureGen(w, s->fh, s->pixels);
+	fbAttach(s->fb, s->texture);
 }
 
 static void createSprite(int w, int h)
@@ -142,7 +150,7 @@ static void spriteDraw(struct sprite *s, int x, int y)
 
 	y += session->brush.size;
 
-	y = fb->h - y;
+	y = session->h - y;
 
 	s->draw.prev = s->draw.curr;
 	s->draw.curr.x = x;
@@ -214,7 +222,7 @@ static void spriteStopDrawing(struct sprite *s)
 static struct rgba sample(int x, int y)
 {
 	struct rgba pixel;	
-	glReadPixels(x, fb->h - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel);
+	glReadPixels(x, session->h - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel);
 	return pixel;
 }
 
@@ -231,7 +239,7 @@ static void pickColor(int x, int y)
 
 static void paletteSetPixel(int x, int y, struct rgba color)
 {
-	setPixel(palette->pixels, x, y, fb->w * sizeof(color), color);
+	setPixel(palette->pixels, x, y, session->w * sizeof(color), color);
 }
 
 static void paletteAddColor(int x, int y, struct rgba color)
@@ -247,8 +255,8 @@ static void center()
 {
 	int cx, cy;
 
-	cx  = fb->w/2;
-	cy  = fb->h/2;
+	cx  = session->w/2;
+	cy  = session->h/2;
 
 	// TODO(cloudhead): use total width of all frames in sprite.
 	cx -= session->sprite->fw/2 * session->zoom;
@@ -279,8 +287,8 @@ static void move(int x, int y)
 
 static void fbSizeCallback(GLFWwindow *win, int w, int h)
 {
-	fb->w = w;
-	fb->h = h;
+	session->w = w;
+	session->h = h;
 
 	fbClear();
 	setupPalette();
@@ -322,11 +330,11 @@ static void setupPalette()
 	int x = 0, y = 0;
 	int s = palette->size;
 
-	palette->h = (255 / (fb->w / s)) * s + s;
-	palette->pixels = realloc(palette->pixels, fb->w * palette->h * sizeof(struct rgba));
-	memset(palette->pixels, 0, fb->w * palette->h * sizeof(struct rgba));
+	palette->h = (255 / (session->w / s)) * s + s;
+	palette->pixels = realloc(palette->pixels, session->w * palette->h * sizeof(struct rgba));
+	memset(palette->pixels, 0, session->w * palette->h * sizeof(struct rgba));
 
-	palette->texture = textureGen(fb->w, palette->h, palette->pixels);
+	palette->texture = textureGen(session->w, palette->h, palette->pixels);
 	glBindTexture(GL_TEXTURE_2D, palette->texture);
 
 	for (int r = 0; r <= 255; r += 51) {
@@ -334,7 +342,7 @@ static void setupPalette()
 			for (int b = 0; b <= 255; b += 51) {
 				paletteAddColor(x, y, rgba(r, g, b, 255));
 
-				if (x + s > fb->w) {
+				if (x + s > session->w) {
 					y += s;
 					x = 0;
 				} else {
@@ -448,15 +456,12 @@ int main(void)
 	glfwSetFramebufferSizeCallback(window, fbSizeCallback);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 
-	// Framebuffer
-	fb = malloc(sizeof(*fb));
-	fb->w = 640;
-	fb->h = 480;
-
 	session             = malloc(sizeof(*session));
 	session->sprite     = NULL;
 	session->sprites    = NULL;
 	session->nsprites   = 0;
+	session->w          = 640;
+	session->h          = 480;
 	session->x          = 0;
 	session->y          = 0;
 	session->offx       = 0;
@@ -476,10 +481,6 @@ int main(void)
 	palette->pixels = NULL;
 	palette->size = 20;
 
-	glGenFramebuffers(1, &fb->texture);
-	glBindFramebuffer(GL_FRAMEBUFFER, fb->texture);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, session->sprite->texture, 0);
-
 	GLenum status;
 
 	if ((status = glCheckFramebufferStatus(GL_FRAMEBUFFER)) != GL_FRAMEBUFFER_COMPLETE) {
@@ -497,10 +498,10 @@ int main(void)
 
 		glfwGetCursorPos(window, &mx, &my);
 
-		glViewport(0, 0, fb->w, fb->h);
+		glViewport(0, 0, session->w, session->h);
 		glMatrixMode(GL_PROJECTION);
 		glLoadIdentity();
-		glOrtho(0.0, fb->w, fb->h, 0.0, -1.0, 1.0);
+		glOrtho(0.0, session->w, session->h, 0.0, -1.0, 1.0);
 		glMatrixMode(GL_MODELVIEW);
 
 		glLoadIdentity();
@@ -512,7 +513,7 @@ int main(void)
 		glPushMatrix(); {
 			struct sprite *s = session->sprite;
 
-			glBindFramebuffer(GL_FRAMEBUFFER, fb->texture);
+			glBindFramebuffer(GL_FRAMEBUFFER, s->fb);
 			spriteRender(s);
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -528,8 +529,8 @@ int main(void)
 		}
 		glPopMatrix();
 
-		textureRefresh(palette->texture, fb->w, palette->h, palette->pixels);
-		textureDraw(palette->texture, fb->w, palette->h, 0, 0, fb->w, palette->h, 0, 0);
+		textureRefresh(palette->texture, session->w, palette->h, palette->pixels);
+		textureDraw(palette->texture, session->w, palette->h, 0, 0, session->w, palette->h, 0, 0);
 
 		drawCursor(window, floor(mx), floor(my));
 
@@ -537,13 +538,12 @@ int main(void)
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
-	glDeleteFramebuffers(1, &fb->texture);
+	glDeleteFramebuffers(1, &session->sprite->fb);
 	glfwDestroyWindow(window);
 	glfwTerminate();
 
 	free(palette->pixels);
 	free(session);
-	free(fb);
 	free(palette);
 
 	exit(0);
