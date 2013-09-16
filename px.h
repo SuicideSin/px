@@ -40,19 +40,30 @@ struct draw {
 struct canvas {
 	GLuint       texture;
 	uint8_t      *pixels;
-	int          zoom;
-	int          x;
-	int          y;
-	int          offx;
-	int          offy;
-	int          w;
-	int          h;
-	int          stride;
 	bool         dirty;
-	struct brush brush;
 	struct draw  draw;
-	struct rgba  fg;
-	struct rgba  bg;
+};
+
+struct sprite {
+	int           fw;
+	int           fh;
+	int           nframes;
+	struct canvas *frames;
+};
+
+struct session {
+	int           x;
+	int           y;
+	int           offx;
+	int           offy;
+	int           zoom;
+	int           nsprites;
+	struct sprite *sprites;
+	struct sprite *sprite;
+	struct canvas *canvas;
+	struct brush  brush;
+	struct rgba   fg;
+	struct rgba   bg;
 };
 
 struct framebuffer {

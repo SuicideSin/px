@@ -20,8 +20,8 @@
 static void paletteAddColor(int x, int y, struct rgba color);
 static void setupPalette();
 
+struct session     *session;
 struct framebuffer *fb;
-struct canvas      *c;
 struct palette     *palette;
 
 static void fbClear()
@@ -40,23 +40,87 @@ static int pixelOffset(int x, int y, int stride)
 	return (y - 0) * stride + (x - 0) * sizeof(struct rgba);
 }
 
-static bool canvasWithinBoundary(int x, int y)
+static void canvasResize(struct canvas *c, int w, int h)
 {
-	return c->x <= x && x < (c->x + c->w * c->zoom) &&
-		c->y <= y && y < (c->y + c->h * c->zoom);
+	int stride = w * sizeof(struct rgba);
+	c->pixels = realloc(c->pixels, h * stride);
+
+	memset(c->pixels, 0, h * stride);
+
+	if (c->texture != 0)
+		glDeleteTextures(1, &c->texture);
+
+	c->texture = textureGen(w, h, c->pixels);
 }
 
-static void canvasDrawCursor(GLFWwindow *win, int x, int y)
+static struct canvas canvas(int w, int h)
 {
-	if (!canvasWithinBoundary(x, y))
+	struct canvas c = (struct canvas){
+		.pixels       = NULL,
+		.texture      = 0,
+		.dirty        = false,
+		.draw.prev.x  = -1,
+		.draw.prev.y  = -1,
+		.draw.curr.x  = -1,
+		.draw.curr.y  = -1,
+		.draw.drawing = false,
+		.draw.color   = TRANSPARENT
+	};
+
+	canvasResize(&c, w, h);
+
+	return c;
+}
+
+static struct sprite sprite(int w, int h)
+{
+	return (struct sprite){
+		.fw      = w,
+		.fh      = h,
+		.nframes = 0,
+		.frames  = NULL
+	};
+}
+
+static void createFrame(int _pos)
+{
+	struct sprite *s = session->sprite;
+	struct canvas c = canvas(s->fw, s->fh);
+
+	s->frames = realloc(s->frames, (s->nframes + 1) * sizeof(c));
+	s->frames[s->nframes] = c;
+	session->canvas = &s->frames[s->nframes];
+	s->nframes++;
+}
+
+static void createSprite(int w, int h)
+{
+	struct sprite s = sprite(w, h);
+
+	session->sprites = realloc(session->sprites, (session->nsprites + 1) * sizeof(s));
+	session->sprites[session->nsprites] = s;
+	session->sprite = &session->sprites[session->nsprites];
+	session->nsprites++;
+}
+
+static bool canvasWithinBoundary(struct canvas *c, int x, int y)
+{
+	return session->x <= x && x < (session->x + session->sprite->fw * session->zoom) &&
+		session->y <= y && y < (session->y + session->sprite->fh * session->zoom);
+}
+
+
+static void drawCursor(GLFWwindow *win, int x, int y)
+{
+	if (!canvasWithinBoundary(session->canvas, x, y))
 		return;
 
-	int s = c->brush.size * c->zoom;
+	int s = session->brush.size * session->zoom;
 
-	int cx = x - (x % c->zoom) + 0.5;
-	int cy = y - (y % c->zoom) + 0.5;
+	int cx = x - (x % session->zoom) + 0.5;
+	int cy = y - (y % session->zoom) + 0.5;
 
-	glColor4ubv((GLubyte*)&c->fg);
+	glColor4ubv((GLubyte*)&session->fg);
 	glRecti(cx, cy, cx + s, cy + s);
 }
 
@@ -68,13 +132,13 @@ static void setPixel(uint8_t *data, int x, int y, int stride, struct rgba color)
 
 static void canvasDraw(struct canvas *c, int x, int y)
 {
-	x -= c->x;
-	y -= c->y;
+	x -= session->x;
+	y -= session->y;
 
-	x /= c->zoom;
-	y /= c->zoom;
+	x /= session->zoom;
+	y /= session->zoom;
 
-	y += c->brush.size;
+	y += session->brush.size;
 
 	y = fb->h - y;
 
@@ -89,7 +153,7 @@ static void canvasRender(struct canvas *c)
 	if (!c->dirty)
 		return;
 
-	glColor4ubv((GLubyte*)&c->fg);
+	glColor4ubv((GLubyte*)&session->fg);
 
 	int x = c->draw.curr.x,
 		y = c->draw.curr.y,
@@ -101,7 +165,7 @@ static void canvasRender(struct canvas *c)
 		sy = y < y1 ? 1 : -1;
 
 	int err = dx - dy;
-	int s = c->brush.size;
+	int s = session->brush.size;
 		
 	if (c->draw.drawing > DRAW_STARTED) {
 		for (;;) {
@@ -131,16 +195,16 @@ static void canvasRender(struct canvas *c)
 	c->dirty = false;
 }
 
-static void canvasStartDrawing(int x, int y)
+static void canvasStartDrawing(struct canvas *c, int x, int y)
 {
-	if (!canvasWithinBoundary(x, y))
+	if (!canvasWithinBoundary(c, x, y))
 		return;
 
 	canvasDraw(c, x, y);
 	c->draw.drawing = DRAW_STARTED;
 }
 
-static void canvasStopDrawing()
+static void canvasStopDrawing(struct canvas *c)
 {
 	c->draw.drawing = DRAW_ENDED;
 }
@@ -154,11 +218,11 @@ static struct rgba sample(int x, int y)
 
 static void setFgColor(struct rgba color)
 {
-	c->fg = color;
-	paletteAddColor(0, 0, c->fg);
+	session->fg = color;
+	paletteAddColor(0, 0, session->fg);
 }
 
-static void canvasPickColor(int x, int y)
+static void pickColor(int x, int y)
 {
 	setFgColor(sample(x, y));
 }
@@ -177,36 +241,38 @@ static void paletteAddColor(int x, int y, struct rgba color)
 	}
 }
 
-static void canvasCenter(struct canvas *c)
+static void center()
 {
 	int cx, cy;
 
 	cx  = fb->w/2;
 	cy  = fb->h/2;
-	cx -= c->w/2 * c->zoom;
-	cy -= c->h/2 * c->zoom;
 
-	c->x = cx + c->offx;
-	c->y = cy + c->offy;
+	// TODO(cloudhead): use total width of all frames in sprite.
+	cx -= session->sprite->fw/2 * session->zoom;
+	cy -= session->sprite->fh/2 * session->zoom;
 
-	c->x -= c->x % c->zoom;
-	c->y -= c->y % c->zoom;
+	session->x = cx + session->offx;
+	session->y = cy + session->offy;
+
+	session->x -= session->x % session->zoom;
+	session->y -= session->y % session->zoom;
 }
 
-static void canvasReset(struct canvas *c)
+static void reset()
 {
-	c->offx = 0;
-	c->offy = 0;
+	session->offx = 0;
+	session->offy = 0;
 
-	canvasCenter(c);
+	center();
 }
 
-static void canvasMove(struct canvas *c, int x, int y)
+static void move(int x, int y)
 {
-	c->offx += x;
-	c->offy += y;
+	session->offx += x;
+	session->offy += y;
 
-	canvasCenter(c);
+	center();
 }
 
 static void fbSizeCallback(GLFWwindow *win, int w, int h)
@@ -216,7 +282,7 @@ static void fbSizeCallback(GLFWwindow *win, int w, int h)
 
 	fbClear();
 	setupPalette();
-	canvasCenter(c);
+	center();
 }
 
 static void mouseButtonCallback(GLFWwindow *win, int button, int action, int mods)
@@ -227,12 +293,12 @@ static void mouseButtonCallback(GLFWwindow *win, int button, int action, int mod
 		glfwGetCursorPos(win, &x, &y);
 
 		if (mods & GLFW_MOD_CONTROL) {
-			canvasPickColor(round(x), round(y));
+			pickColor(round(x), round(y));
 		} else {
-			canvasStartDrawing(floor(x), floor(y));
+			canvasStartDrawing(session->canvas, floor(x), floor(y));
 		}
 	} else if (action == GLFW_RELEASE) {
-		canvasStopDrawing();
+		canvasStopDrawing(session->canvas);
 	}
 }
 
@@ -240,6 +306,8 @@ static void cursorPosCallback(GLFWwindow *win, double fx, double fy)
 {
 	int x = floor(fx),
 		y = floor(fy);
+
+	struct canvas *c = session->canvas;
 
 	if (c->draw.drawing == DRAW_STARTED || c->draw.drawing == DRAW_DRAWING) {
 		canvasDraw(c, x, y);
@@ -276,38 +344,23 @@ static void setupPalette()
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-static void canvasBrushSize(int n)
+static void brushSize(int n)
 {
-	c->brush.size += n;
+	session->brush.size += n;
 
-	if (c->brush.size < 1)
-		c->brush.size = 1;
+	if (session->brush.size < 1)
+		session->brush.size = 1;
 }
 
-static void canvasZoom(struct canvas *c, int n)
+static void zoom(int n)
 {
-	c->zoom += n;
+	session->zoom += n;
 
-	if (c->zoom < 1)
-		c->zoom = 1;
+	if (session->zoom < 1)
+		session->zoom = 1;
 
-	canvasCenter(c);
+	center();
 	fbClear();
-}
-
-static void canvasResize(struct canvas *c, int w, int h)
-{
-	c->w = w;
-	c->h = h;
-	c->stride = c->w * sizeof(struct rgba);
-	c->pixels = realloc(c->pixels, c->h * c->stride);
-
-	memset(c->pixels, 0, c->h * c->stride);
-
-	if (c->texture != 0)
-		glDeleteTextures(1, &c->texture);
-
-	c->texture = textureGen(c->w, c->h, c->pixels);
 }
 
 static void windowClose(GLFWwindow *win)
@@ -321,15 +374,20 @@ static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int 
 		return;
 
 	switch (key) {
-		case ',':             canvasZoom(c, -1);        break;
-		case '.':             canvasZoom(c, +1);        break;
-		case '[':             canvasBrushSize(-1);      break;
-		case ']':             canvasBrushSize(+1);      break;
-		case GLFW_KEY_LEFT:   canvasMove(c, -50,   0);  break;
-		case GLFW_KEY_RIGHT:  canvasMove(c, +50,   0);  break;
-		case GLFW_KEY_DOWN:   canvasMove(c,   0, +50);  break;
-		case GLFW_KEY_UP:     canvasMove(c,   0, -50);  break;
-		case GLFW_KEY_ESCAPE: windowClose(win);         break;
+		case ',':             zoom(-1);         return;
+		case '.':             zoom(+1);         return;
+		case '[':             brushSize(-1);    return;
+		case ']':             brushSize(+1);    return;
+		case GLFW_KEY_LEFT:   move(-50, 0);     return;
+		case GLFW_KEY_RIGHT:  move(+50, 0);     return;
+		case GLFW_KEY_DOWN:   move(0, +50);     return;
+		case GLFW_KEY_UP:     move(0, -50);     return;
+		case GLFW_KEY_ESCAPE: windowClose(win); return;
+	}
+	if (mods & GLFW_MOD_CONTROL && key == 'f') {
+		createFrame(-1);
+	} else if (mods & GLFW_MOD_CONTROL && key == 'd') {
+		// TODO: Remove frame
 	}
 }
 
@@ -346,30 +404,18 @@ static void boundaryDraw(int x, int y, int w, int h)
 	glEnd();
 }
 
-static struct canvas *canvas(int w, int h)
+static void drawBoundaries()
 {
-	struct canvas *c = malloc(sizeof(*c));
+	struct sprite *s = session->sprite;
 
-	c->pixels       = NULL;
-	c->texture      = 0;
-	c->zoom         = 1;
-	c->x            = 0;
-	c->y            = 0;
-	c->w            = w;
-	c->h            = h;
-	c->brush.size   = 1;
-	c->dirty        = false;
-	c->draw.prev.x  = -1;
-	c->draw.prev.y  = -1;
-	c->draw.curr.x  = -1;
-	c->draw.curr.y  = -1;
-	c->draw.drawing = false;
-	c->draw.color   = TRANSPARENT;
-
-	canvasReset(c);
-	canvasResize(c, w, h);
-
-	return c;
+	for (int i = 0; i < s->nframes; i++) {
+		boundaryDraw(
+			session->x + i * s->fw * session->zoom,
+			session->y,
+			s->fw * session->zoom,
+			s->fh * session->zoom
+		);
+	}
 }
 
 int main(void)
@@ -397,17 +443,33 @@ int main(void)
 	fb->w = 640;
 	fb->h = 480;
 
+	session             = malloc(sizeof(*session));
+	session->sprite     = NULL;
+	session->sprites    = NULL;
+	session->nsprites   = 0;
+	session->x          = 0;
+	session->y          = 0;
+	session->offx       = 0;
+	session->offy       = 0;
+	session->zoom       = 1;
+	session->canvas     = NULL;
+	session->brush.size = 1;
+	session->fg         = WHITE;
+	session->bg         = WHITE;
+	
+	createSprite(64, 64);
+	createFrame(-1);
+
+	reset();
+
 	// Color palette
 	palette = malloc(sizeof(*palette));
 	palette->pixels = NULL;
 	palette->size = 20;
 
-	// Canvas
-	c = canvas(256, 256);
-
 	glGenFramebuffers(1, &fb->texture);
 	glBindFramebuffer(GL_FRAMEBUFFER, fb->texture);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, c->texture, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, session->canvas->texture, 0);
 
 	GLenum status;
 
@@ -439,26 +501,29 @@ int main(void)
 		glEnable(GL_TEXTURE_2D);
 
 		glPushMatrix(); {
+			struct canvas *c = session->canvas;
+			struct sprite *s = session->sprite;
+
 			glBindFramebuffer(GL_FRAMEBUFFER, fb->texture);
-			canvasRender(c);
+			canvasRender(session->canvas);
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 			glClear(GL_COLOR_BUFFER_BIT);
 			glClearColor(0.0, 0.0, 0.0, 1.0);
 
-			boundaryDraw(c->x, c->y, c->w * c->zoom, c->h * c->zoom);
+			drawBoundaries();
 
-			glTranslatef(c->x, c->y, 0.0f);
-			glScalef(c->zoom, c->zoom, 1.0f);
+			glTranslatef(session->x, session->y, 0.0f);
+			glScalef(session->zoom, session->zoom, 1.0f);
 
-			textureDraw(c->texture, c->w, c->h, 0, 0, c->w, c->h, 0, 0);
+			textureDraw(c->texture, s->fw, s->fh, 0, 0, s->fw, s->fh, 0, 0);
 		}
 		glPopMatrix();
 
 		textureRefresh(palette->texture, fb->w, palette->h, palette->pixels);
 		textureDraw(palette->texture, fb->w, palette->h, 0, 0, fb->w, palette->h, 0, 0);
 
-		canvasDrawCursor(window, floor(mx), floor(my));
+		drawCursor(window, floor(mx), floor(my));
 
 		glFlush();
 		glfwSwapBuffers(window);
@@ -468,9 +533,8 @@ int main(void)
 	glfwDestroyWindow(window);
 	glfwTerminate();
 
-	free(c->pixels);
 	free(palette->pixels);
-	free(c);
+	free(session);
 	free(fb);
 	free(palette);
 
