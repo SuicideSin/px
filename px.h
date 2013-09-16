@@ -37,27 +37,29 @@ struct draw {
 	struct point prev;
 };
 
-struct canvas {
-	GLuint       texture;
-	uint8_t      *pixels;
-	int          zoom;
-	int          x;
-	int          y;
-	int          offx;
-	int          offy;
-	int          w;
-	int          h;
-	int          stride;
-	bool         dirty;
-	struct brush brush;
-	struct draw  draw;
-	struct rgba  fg;
-	struct rgba  bg;
+struct sprite {
+	GLuint        texture;
+	GLuint        fb;
+	uint8_t       *pixels;
+	bool          dirty;
+	int           fw;
+	int           fh;
+	int           nframes;
+	struct draw   draw;
 };
 
-struct framebuffer {
-	int    w;
-	int    h;
-	GLuint texture;
+struct session {
+	int           w;
+	int           h;
+	int           x;
+	int           y;
+	int           offx;
+	int           offy;
+	int           zoom;
+	int           nsprites;
+	struct sprite *sprites;
+	struct sprite *sprite;
+	struct brush  brush;
+	struct rgba   fg;
+	struct rgba   bg;
 };
-

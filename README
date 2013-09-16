@@ -19,3 +19,14 @@ GOALS
 * Optimized for advanced users. No hand-holding. Vi-like philosophy.
 * Small, hackable codebase. The aim is < 5KLOC. GLFW is the only dependency.
 
+DEPENDENCIES
+
+* glfw 3.0+ (http://www.glfw.org)
+
+LICENSE
+
+GPLv3 (see LICENSE file for more details)
+
+COPYRIGHT
+
+(c) 2013 Alexis Sellier <mail@cloudhead.io>
