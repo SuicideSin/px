@@ -37,18 +37,14 @@ struct draw {
 	struct point prev;
 };
 
-struct canvas {
-	GLuint       texture;
-	uint8_t      *pixels;
-	bool         dirty;
-	struct draw  draw;
-};
-
 struct sprite {
+	GLuint        texture;
+	uint8_t       *pixels;
+	bool          dirty;
 	int           fw;
 	int           fh;
 	int           nframes;
-	struct canvas *frames;
+	struct draw   draw;
 };
 
 struct session {
@@ -60,7 +56,6 @@ struct session {
 	int           nsprites;
 	struct sprite *sprites;
 	struct sprite *sprite;
-	struct canvas *canvas;
 	struct brush  brush;
 	struct rgba   fg;
 	struct rgba   bg;
