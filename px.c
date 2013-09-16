@@ -413,6 +413,19 @@ static void windowClose(GLFWwindow *win)
 	glfwSetWindowShouldClose(win, GL_TRUE);
 }
 
+static void adjustFPS(int n)
+{
+	session->fps += n;
+
+	if (session->fps < 1)
+		session->fps = 1;
+}
+
+static void pause()
+{
+	session->paused = !session->paused;
+}
+
 static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int mods)
 {
 	if (action != GLFW_PRESS)
@@ -423,13 +436,18 @@ static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int 
 		case '.':             zoom(+1);         return;
 		case '[':             brushSize(-1);    return;
 		case ']':             brushSize(+1);    return;
+		case GLFW_KEY_SPACE:  pause();          return;
 		case GLFW_KEY_LEFT:   move(-50, 0);     return;
 		case GLFW_KEY_RIGHT:  move(+50, 0);     return;
 		case GLFW_KEY_DOWN:   move(0, +50);     return;
 		case GLFW_KEY_UP:     move(0, -50);     return;
 		case GLFW_KEY_ESCAPE: windowClose(win); return;
 	}
-	if (mods & GLFW_MOD_CONTROL && key == GLFW_KEY_F) {
+	if (mods & GLFW_MOD_SHIFT && key == GLFW_KEY_EQUAL) {
+		adjustFPS(+1);
+	} else if (key == GLFW_KEY_MINUS) {
+		adjustFPS(-1);
+	} else if (mods & GLFW_MOD_CONTROL && key == GLFW_KEY_F) {
 		createFrame(-1);
 	} else if (mods & GLFW_MOD_CONTROL && key == 'd') {
 		// TODO: Remove frame
@@ -501,10 +519,11 @@ int main(void)
 	session->offy       = 0;
 	session->zoom       = 1;
 	session->brush.size = 1;
+	session->paused     = true;
 	session->fg         = WHITE;
 	session->bg         = WHITE;
 	session->started    = glfwGetTime();
-	session->fps        = 12;
+	session->fps        = 6;
 	
 	createSprite(64, 64);
 	createFrame(-1);
@@ -554,7 +573,7 @@ int main(void)
 
 			textureDraw(s->texture, s->fw * s->nframes, s->fh, 0, 0, s->fw * s->nframes, s->fh, 0, 0);
 
-			if (s->nframes > 1) {
+			if (s->nframes > 1 && !session->paused) {
 				glTranslatef(-s->fw, 0, 0.0f);
 				spriteRenderCurrentFrame(s);
 			}

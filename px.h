@@ -58,6 +58,7 @@ struct session {
 	int           zoom;
 	int           nsprites;
 	int           fps;
+	bool          paused;
 	double        started;
 	struct sprite *sprites;
 	struct sprite *sprite;
