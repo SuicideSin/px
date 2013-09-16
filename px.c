@@ -175,15 +175,14 @@ static void spriteRender(struct sprite *s)
 
 	glColor4ubv((GLubyte*)&session->fg);
 
-	int x = s->draw.curr.x,
-		y = s->draw.curr.y,
-		x1 = s->draw.prev.x,
-		y1 = s->draw.prev.y,
-		dx = abs(x1 - x),
-		dy = abs(y1 - y),
-		sx = x < x1 ? 1 : -1,
-		sy = y < y1 ? 1 : -1;
-
+	int x = s->draw.curr.x;
+	int y = s->draw.curr.y;
+	int x1 = s->draw.prev.x;
+	int y1 = s->draw.prev.y;
+	int dx = abs(x1 - x);
+	int dy = abs(y1 - y);
+	int sx = x < x1 ? 1 : -1;
+	int sy = y < y1 ? 1 : -1;
 	int err = dx - dy;
 	int size = session->brush.size;
 		
