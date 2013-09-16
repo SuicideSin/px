@@ -15,6 +15,7 @@
 
 #define rgba(r, g, b, a) ((struct rgba){r, g, b, a})
 #define WHITE            rgba(255, 255, 255, 255)
+#define GREY             rgba(128, 128, 128, 255)
 #define TRANSPARENT      rgba(0, 0, 0, 0)
 
 static void paletteAddColor(int x, int y, struct rgba color);
@@ -106,8 +107,8 @@ static void createSprite(int w, int h)
 
 static bool spriteWithinBoundary(struct sprite *s, int x, int y)
 {
-	return session->x <= x && x < (session->x + session->sprite->fw * session->zoom) &&
-		session->y <= y && y < (session->y + session->sprite->fh * session->zoom);
+	return session->x <= x && x < (session->x + s->fw * s->nframes * session->zoom) &&
+		session->y <= y && y < (session->y + s->fh * session->zoom);
 }
 
 
@@ -385,18 +386,18 @@ static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int 
 		case GLFW_KEY_UP:     move(0, -50);     return;
 		case GLFW_KEY_ESCAPE: windowClose(win); return;
 	}
-	if (mods & GLFW_MOD_CONTROL && key == 'f') {
+	if (mods & GLFW_MOD_CONTROL && key == GLFW_KEY_F) {
 		createFrame(-1);
 	} else if (mods & GLFW_MOD_CONTROL && key == 'd') {
 		// TODO: Remove frame
 	}
 }
 
-static void boundaryDraw(int x, int y, int w, int h)
+static void boundaryDraw(struct rgba color, int x, int y, int w, int h)
 {
 	int offx = x, offy = y;
 
-	glColor3f(1.0, 1.0, 1.0);
+	glColor4ubv((GLubyte*)&color);
 	glBegin(GL_LINE_LOOP);
 	glVertex3f(offx,     offy, 0);
 	glVertex3f(offx + w, offy, 0);
@@ -411,12 +412,20 @@ static void drawBoundaries()
 
 	for (int i = 0; i < s->nframes; i++) {
 		boundaryDraw(
+			GREY,
 			session->x + i * s->fw * session->zoom,
 			session->y,
 			s->fw * session->zoom,
 			s->fh * session->zoom
 		);
 	}
+	boundaryDraw(
+		WHITE,
+		session->x,
+		session->y,
+		s->fw * s->nframes * session->zoom,
+		s->fh * session->zoom
+	);
 }
 
 int main(void)
@@ -515,7 +524,7 @@ int main(void)
 			glTranslatef(session->x, session->y, 0.0f);
 			glScalef(session->zoom, session->zoom, 1.0f);
 
-			textureDraw(s->texture, s->fw, s->fh, 0, 0, s->fw, s->fh, 0, 0);
+			textureDraw(s->texture, s->fw * s->nframes, s->fh, 0, 0, s->fw * s->nframes, s->fh, 0, 0);
 		}
 		glPopMatrix();
 
