@@ -16,6 +16,7 @@
 #define rgba(r, g, b, a) ((struct rgba){r, g, b, a})
 #define WHITE            rgba(255, 255, 255, 255)
 #define GREY             rgba(128, 128, 128, 255)
+#define DARKGREY         rgba(64, 64, 64, 255)
 #define TRANSPARENT      rgba(0, 0, 0, 0)
 
 static void paletteAddColor(int x, int y, struct rgba color);
@@ -34,6 +35,15 @@ static void fbAttach(GLuint fb, GLuint tex)
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, fb);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+
+	GLenum status;
+
+	if ((status = glCheckFramebufferStatus(GL_FRAMEBUFFER)) != GL_FRAMEBUFFER_COMPLETE) {
+		fprintf(stderr, "glCheckFramebufferStatus: error %u", status);
+		exit(1);
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 }
 
 static void errorCallback(int error, const char* description)
@@ -403,14 +413,12 @@ static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int 
 
 static void boundaryDraw(struct rgba color, int x, int y, int w, int h)
 {
-	int offx = x, offy = y;
-
 	glColor4ubv((GLubyte*)&color);
 	glBegin(GL_LINE_LOOP);
-	glVertex3f(offx,     offy, 0);
-	glVertex3f(offx + w, offy, 0);
-	glVertex3f(offx + w, offy + h, 0);
-	glVertex3f(offx,     offy + h, 0);
+	glVertex3f(x,     y, 0);
+	glVertex3f(x + w, y, 0);
+	glVertex3f(x + w, y + h, 0);
+	glVertex3f(x,     y + h, 0);
 	glEnd();
 }
 
@@ -420,7 +428,7 @@ static void drawBoundaries()
 
 	for (int i = 0; i < s->nframes; i++) {
 		boundaryDraw(
-			GREY,
+			DARKGREY,
 			session->x + i * s->fw * session->zoom,
 			session->y,
 			s->fw * session->zoom,
@@ -428,7 +436,7 @@ static void drawBoundaries()
 		);
 	}
 	boundaryDraw(
-		WHITE,
+		GREY,
 		session->x,
 		session->y,
 		s->fw * s->nframes * session->zoom,
@@ -480,14 +488,6 @@ int main(void)
 	palette = malloc(sizeof(*palette));
 	palette->pixels = NULL;
 	palette->size = 20;
-
-	GLenum status;
-
-	if ((status = glCheckFramebufferStatus(GL_FRAMEBUFFER)) != GL_FRAMEBUFFER_COMPLETE) {
-		fprintf(stderr, "glCheckFramebufferStatus: error %u", status);
-		exit(1);
-	}
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	fbClear();
 	setupPalette();
