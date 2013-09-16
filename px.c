@@ -97,20 +97,37 @@ static struct sprite sprite(int w, int h)
 static void createFrame(int _pos)
 {
 	struct sprite *s = session->sprite;
+	struct rgba *tmp = malloc(sizeof(struct rgba) * s->fw * s->nframes * s->fh);
 
-	s->nframes++;
+	// Create copy of framebuffer pixels.
+	glBindFramebuffer(GL_FRAMEBUFFER, s->fb);
+	glReadPixels(0, 0, s->fw * s->nframes, s->fh, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-	int w = s->fw * s->nframes;
+	int w = s->fw * (s->nframes + 1);
 	int stride = w * sizeof(struct rgba);
-	s->pixels = realloc(s->pixels, s->fh * stride);
 
+	s->pixels = realloc(s->pixels, s->fh * stride);
 	memset(s->pixels, 0, s->fh * stride);
 
-	if (s->texture != 0)
+	if (s->texture)
 		glDeleteTextures(1, &s->texture);
 
 	s->texture = textureGen(w, s->fh, s->pixels);
 	fbAttach(s->fb, s->texture);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, s->fb);
+	glDrawPixels(s->fw * s->nframes, s->fh, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
+	glBlitFramebuffer(
+		s->fw * (s->nframes - 1), 0,       // Source x0, y0
+		s->fw * s->nframes,       s->fh,   // Source x1, y1
+		s->fw * s->nframes,       0,       // Destination x0, y0
+		s->fw * (s->nframes + 1), s->fh,   // Destination x1, y1
+		GL_COLOR_BUFFER_BIT, GL_NEAREST
+	);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	s->nframes++;
 }
 
 static void createSprite(int w, int h)
