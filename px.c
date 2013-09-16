@@ -214,6 +214,15 @@ static void spriteRender(struct sprite *s)
 	s->dirty = false;
 }
 
+static void spriteRenderCurrentFrame(struct sprite *s)
+{
+	double elapsed = glfwGetTime() - session->started;
+	double frac = session->fps * elapsed;
+	int frame = (int)floor(frac) % s->nframes;
+
+	textureDraw(s->texture, s->fw * s->nframes, s->fh, frame * s->fw, 0, s->fw, s->fh, 0, 0);
+}
+
 static void spriteStartDrawing(struct sprite *s, int x, int y)
 {
 	if (!spriteWithinBoundary(s, x, y))
@@ -477,6 +486,8 @@ int main(void)
 	session->brush.size = 1;
 	session->fg         = WHITE;
 	session->bg         = WHITE;
+	session->started    = glfwGetTime();
+	session->fps        = 12;
 	
 	createSprite(64, 64);
 	createFrame(-1);
@@ -525,6 +536,11 @@ int main(void)
 			glScalef(session->zoom, session->zoom, 1.0f);
 
 			textureDraw(s->texture, s->fw * s->nframes, s->fh, 0, 0, s->fw * s->nframes, s->fh, 0, 0);
+
+			if (s->nframes > 1) {
+				glTranslatef(-s->fw, 0, 0.0f);
+				spriteRenderCurrentFrame(s);
+			}
 		}
 		glPopMatrix();
 
