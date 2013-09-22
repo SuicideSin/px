@@ -32,7 +32,8 @@ enum dstate {
 
 enum cursor {
 	CURSOR_DEFAULT,
-	CURSOR_SAMPLER
+	CURSOR_SAMPLER,
+	CURSOR_MULTI
 };
 
 struct draw {

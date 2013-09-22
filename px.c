@@ -185,6 +185,8 @@ static void drawCursor(GLFWwindow *win, int x, int y, enum cursor c)
 	int cx = x - (x % session->zoom) + 0.5;
 	int cy = y - (y % session->zoom) + 0.5;
 
+	struct sprite *sp = session->sprite;
+
 	switch (c) {
 	case CURSOR_DEFAULT:
 		glColor4ubv((GLubyte*)&session->fg);
@@ -192,6 +194,15 @@ static void drawCursor(GLFWwindow *win, int x, int y, enum cursor c)
 		break;
 	case CURSOR_SAMPLER:
 		boundaryDraw(WHITE, cx, cy, s, s);
+		break;
+	case CURSOR_MULTI:
+		for (int i = 0; i < sp->nframes; i++) {
+			glColor4ubv((GLubyte*)&session->fg);
+			glRecti(cx + i * sp->fw * session->zoom,
+					cy,
+					cx + i * sp->fw * session->zoom + s,
+					cy + s);
+		}
 		break;
 	}
 }
@@ -220,25 +231,17 @@ static void spriteDraw(struct sprite *s, int x, int y)
 	s->dirty = true;
 }
 
-static void spriteRender(struct sprite *s)
+static void spritePaint(struct sprite *s, int x, int y, int x1, int y1)
 {
-	if (!s->dirty)
-		return;
-
-	glColor4ubv((GLubyte*)&session->fg);
-
-	int x = s->draw.curr.x;
-	int y = s->draw.curr.y;
-	int x1 = s->draw.prev.x;
-	int y1 = s->draw.prev.y;
-	int dx = abs(x1 - x);
-	int dy = abs(y1 - y);
-	int sx = x < x1 ? 1 : -1;
-	int sy = y < y1 ? 1 : -1;
-	int err = dx - dy;
 	int size = session->brush.size;
 
 	if (s->draw.drawing > DRAW_STARTED) {
+		int dx = abs(x1 - x);
+		int dy = abs(y1 - y);
+		int sx = x < x1 ? 1 : -1;
+		int sy = y < y1 ? 1 : -1;
+		int err = dx - dy;
+
 		for (;;) {
 			glRecti(x, y, x + size, y + size);
 
@@ -262,6 +265,32 @@ static void spriteRender(struct sprite *s)
 		}
 	} else {
 		glRecti(x, y, x + size, y + size);
+	}
+}
+
+static void spriteRender(struct sprite *s)
+{
+	if (!s->dirty)
+		return;
+
+	glColor4ubv((GLubyte*)&session->fg);
+
+	int x  = s->draw.curr.x;
+	int y  = s->draw.curr.y;
+	int x1 = s->draw.prev.x;
+	int y1 = s->draw.prev.y;
+
+	switch (session->cursor) {
+	case CURSOR_DEFAULT:
+		spritePaint(s, x, y, x1, y1);
+		break;
+	case CURSOR_MULTI:
+		for (int i = 0; i < s->nframes; i++) {
+			spritePaint(s, x + i * s->fw, y, x1 + i * s->fw, y1);
+		}
+		break;
+	default:
+		break;
 	}
 	s->dirty = false;
 }
@@ -482,6 +511,9 @@ static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int 
 	if (key == GLFW_KEY_LEFT_CONTROL) {
 		session->cursor = (action == GLFW_PRESS) ? CURSOR_SAMPLER : CURSOR_DEFAULT;
 	}
+	if (key == GLFW_KEY_LEFT_SHIFT) {
+		session->cursor = (action == GLFW_PRESS) ? CURSOR_MULTI : CURSOR_DEFAULT;
+	}
 
 	if (action != GLFW_PRESS)
 		return;
@@ -583,6 +615,7 @@ int main(int argc, char *argv[])
 	session->bg         = WHITE;
 	session->started    = glfwGetTime();
 	session->fps        = 6;
+	session->filepath   = NULL;
 
 	if (argc > 1) {
 		loadSprites(argv[1]);
