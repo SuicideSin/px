@@ -45,7 +45,6 @@ static void fbAttach(GLuint fb, GLuint tex)
 		exit(1);
 	}
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
 }
 
 static void errorCallback(int error, const char* description)
