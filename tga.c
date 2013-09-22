@@ -10,21 +10,6 @@
 
 #include "tga.h"
 
-struct header {
-	char  idlen;
-	char  colormaptype;
-	char  imagetype;
-	short colormapoff;
-	short colormaplen;
-	char  colormapdepth;
-	short x;
-	short y;
-	short width;
-	short height;
-	char  depth;
-	char  imagedesc;
-};
-
 struct pixel {
 	unsigned char r, g, b, a;
 };
@@ -37,30 +22,26 @@ struct tga *tgaDecode(const char *path)
 		return NULL;
 
 	struct tga *t = malloc(sizeof(*t));
-	struct header h;
 
-	fread(&h.idlen, 1, 1, fp);
-	fread(&h.colormaptype, 1, 1, fp);
-	fread(&h.imagetype, 1, 1, fp);
-	fread(&h.colormapoff, 2, 1, fp);
-	fread(&h.colormaplen, 2, 1, fp);
-	fread(&h.colormapdepth, 1, 1, fp);
-	fread(&h.x, 2, 1, fp);
-	fread(&h.y, 2, 1, fp);
-	fread(&h.width, 2, 1, fp);
-	fread(&h.height, 2, 1, fp);
-	fread(&h.depth, 1, 1, fp);
-	fread(&h.imagedesc, 1, 1, fp);
+	fread(&t->header.idlen, 1, 1, fp);
+	fread(&t->header.colormaptype, 1, 1, fp);
+	fread(&t->header.imagetype, 1, 1, fp);
+	fread(&t->header.colormapoff, 2, 1, fp);
+	fread(&t->header.colormaplen, 2, 1, fp);
+	fread(&t->header.colormapdepth, 1, 1, fp);
+	fread(&t->header.x, 2, 1, fp);
+	fread(&t->header.y, 2, 1, fp);
+	fread(&t->width, 2, 1, fp);
+	fread(&t->height, 2, 1, fp);
+	fread(&t->depth, 1, 1, fp);
+	fread(&t->header.imagedesc, 1, 1, fp);
 
-	t->data   = malloc(sizeof(struct pixel) * h.width * h.height);
-	t->width  = h.width;
-	t->height = h.height;
-	t->depth  = h.depth;
+	t->data = malloc(sizeof(struct pixel) * t->width * t->height);
 
-	int bytes = h.depth / 8;
+	int bytes = t->depth / 8;
 	char p[4];
 
-	for (int i = 0; i < h.width * h.height; i++) {
+	for (int i = 0; i < t->width * t->height; i++) {
 		p[3] = 0xff; // Default to 100% opaque
 
 		if (!fread(p, bytes, 1, fp)) {
@@ -73,8 +54,40 @@ struct tga *tgaDecode(const char *path)
 }
 
 
-int tgaEncode(struct tga *t)
+int tgaEncode(struct tga *t, const char *path)
 {
-	return 1;
+	FILE *fp = fopen(path, "wb");
+
+	if (!fp)
+		return 1;
+
+	fwrite(&t->header.idlen, 1, 1, fp);
+	fwrite(&t->header.colormaptype, 1, 1, fp);
+	fwrite(&t->header.imagetype, 1, 1, fp);
+	fwrite(&t->header.colormapoff, 2, 1, fp);
+	fwrite(&t->header.colormaplen, 2, 1, fp);
+	fwrite(&t->header.colormapdepth, 1, 1, fp);
+	fwrite(&t->header.x, 2, 1, fp);
+	fwrite(&t->header.y, 2, 1, fp);
+	fwrite(&t->width, 2, 1, fp);
+	fwrite(&t->height, 2, 1, fp);
+	fwrite(&t->depth, 1, 1, fp);
+	fwrite(&t->header.imagedesc, 1, 1, fp);
+
+	int bytes = t->depth / 8;
+	char p[4];
+
+	for (int i = 0; i < t->width * t->height; i++) {
+		p[0] = ((struct pixel *)&t->data[i])->b;
+		p[1] = ((struct pixel *)&t->data[i])->g;
+		p[2] = ((struct pixel *)&t->data[i])->r;
+		p[3] = ((struct pixel *)&t->data[i])->a;
+
+		if (!fwrite(p, bytes, 1, fp)) {
+			fprintf(stderr, "error: unexpected EOF at offset %d\n", i);
+			exit(-1);
+		}
+	}
+	return 0;
 }
 

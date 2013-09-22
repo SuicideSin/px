@@ -46,6 +46,7 @@ struct sprite {
 	int           fh;
 	int           nframes;
 	struct draw   draw;
+	void          *image;
 };
 
 struct session {
@@ -60,6 +61,7 @@ struct session {
 	int           fps;
 	bool          paused;
 	double        started;
+	const char    *filepath;
 	struct sprite *sprites;
 	struct sprite *sprite;
 	struct brush  brush;

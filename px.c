@@ -149,7 +149,7 @@ static void addSprite(struct sprite s)
 	session->nsprites++;
 }
 
-static void loadSprite(const char *path)
+static void loadSprites(const char *path)
 {
 	struct tga *t;
 	struct sprite s;
@@ -159,11 +159,13 @@ static void loadSprite(const char *path)
 		exit(1);
 	}
 	s = sprite(t->height, t->height, (uint8_t *)t->data, 0, t->width);
+	s.image = t;
 
 	fprintf(stderr, "loading image '%s' (%dx%dx%d)\n", path, t->width, t->height, t->depth);
 
 	addSprite(s);
-	free(t);
+
+	session->filepath = path;
 }
 
 static bool spriteWithinBoundary(struct sprite *s, int x, int y)
@@ -452,6 +454,18 @@ static void pause()
 	session->paused = !session->paused;
 }
 
+static void saveCopy()
+{
+	size_t len = strlen(session->filepath);
+	char filename[len + 1 + 3]; // <filename>.001
+
+	sprintf(filename, "%s.%.3d", session->filepath, 1);
+
+	if (tgaEncode((struct tga *)session->sprite->image, filename) != 0) {
+		fprintf(stderr, "error: unable to save copy to '%s'", filename);
+	}
+}
+
 static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int mods)
 {
 	if (action != GLFW_PRESS)
@@ -477,6 +491,10 @@ static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int 
 		createFrame(-1);
 	} else if (mods & GLFW_MOD_CONTROL && key == 'd') {
 		// TODO: Remove frame
+	} else if (mods & GLFW_MOD_CONTROL && key == GLFW_KEY_W) {
+		saveCopy();
+	} else if (mods & GLFW_MOD_CONTROL && key == GLFW_KEY_S) {
+		// TODO: Save (overwrite)
 	}
 }
 
@@ -552,7 +570,8 @@ int main(int argc, char *argv[])
 	session->fps        = 6;
 
 	if (argc > 1) {
-		loadSprite(argv[1]);
+		loadSprites(argv[1]);
+		glfwSetWindowTitle(window, argv[1]);
 	} else {
 		addSprite(sprite(64, 64, NULL, 0, 64));
 		createFrame(-1);
