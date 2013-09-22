@@ -174,7 +174,6 @@ static bool spriteWithinBoundary(struct sprite *s, int x, int y)
 		session->y <= y && y < (session->y + s->fh * session->zoom);
 }
 
-
 static void drawCursor(GLFWwindow *win, int x, int y)
 {
 	if (!spriteWithinBoundary(session->sprite, x, y))
