@@ -21,6 +21,7 @@
 #define TRANSPARENT      rgba(0, 0, 0, 0)
 
 static void paletteAddColor(int x, int y, struct rgba color);
+static void boundaryDraw(struct rgba color, int x, int y, int w, int h);
 static void setupPalette();
 
 struct session     *session;
@@ -174,7 +175,7 @@ static bool spriteWithinBoundary(struct sprite *s, int x, int y)
 		session->y <= y && y < (session->y + s->fh * session->zoom);
 }
 
-static void drawCursor(GLFWwindow *win, int x, int y)
+static void drawCursor(GLFWwindow *win, int x, int y, enum cursor c)
 {
 	if (!spriteWithinBoundary(session->sprite, x, y))
 		return;
@@ -184,8 +185,15 @@ static void drawCursor(GLFWwindow *win, int x, int y)
 	int cx = x - (x % session->zoom) + 0.5;
 	int cy = y - (y % session->zoom) + 0.5;
 
-	glColor4ubv((GLubyte*)&session->fg);
-	glRecti(cx, cy, cx + s, cy + s);
+	switch (c) {
+	case CURSOR_DEFAULT:
+		glColor4ubv((GLubyte*)&session->fg);
+		glRecti(cx, cy, cx + s, cy + s);
+		break;
+	case CURSOR_SAMPLER:
+		boundaryDraw(WHITE, cx, cy, s, s);
+		break;
+	}
 }
 
 static void setPixel(uint8_t *data, int x, int y, int stride, struct rgba color)
@@ -471,6 +479,10 @@ static void saveCopy()
 
 static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int mods)
 {
+	if (key == GLFW_KEY_LEFT_CONTROL) {
+		session->cursor = (action == GLFW_PRESS) ? CURSOR_SAMPLER : CURSOR_DEFAULT;
+	}
+
 	if (action != GLFW_PRESS)
 		return;
 
@@ -634,7 +646,7 @@ int main(int argc, char *argv[])
 		textureRefresh(palette->texture, session->w, palette->h, palette->pixels);
 		textureDraw(palette->texture, session->w, palette->h, 0, 0, session->w, palette->h, 0, 0);
 
-		drawCursor(window, floor(mx), floor(my));
+		drawCursor(window, floor(mx), floor(my), session->cursor);
 
 		glFlush();
 		glfwSwapBuffers(window);

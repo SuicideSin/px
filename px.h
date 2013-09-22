@@ -30,6 +30,11 @@ enum dstate {
 	DRAW_ENDED = 3
 };
 
+enum cursor {
+	CURSOR_DEFAULT,
+	CURSOR_SAMPLER
+};
+
 struct draw {
 	enum dstate  drawing;
 	struct rgba  color;
@@ -67,4 +72,5 @@ struct session {
 	struct brush  brush;
 	struct rgba   fg;
 	struct rgba   bg;
+	enum cursor   cursor;
 };
