@@ -12,6 +12,7 @@
 
 #include "texture.h"
 #include "px.h"
+#include "tga.h"
 
 #define rgba(r, g, b, a) ((struct rgba){r, g, b, a})
 #define WHITE            rgba(255, 255, 255, 255)
@@ -71,10 +72,10 @@ static void spriteResizeFrame(struct sprite *s, int w, int h)
 	s->texture = textureGen(w, h, s->pixels);
 }
 
-static struct sprite sprite(int w, int h)
+static struct sprite sprite(int fw, int fh, uint8_t *pixels, int start, int end)
 {
 	struct sprite s = (struct sprite){
-		.pixels       = NULL,
+		.pixels       = pixels,
 		.texture      = 0,
 		.fb           = 0,
 		.dirty        = false,
@@ -84,12 +85,19 @@ static struct sprite sprite(int w, int h)
 		.draw.curr.y  = -1,
 		.draw.drawing = false,
 		.draw.color   = TRANSPARENT,
-		.fw           = w,
-		.fh           = h,
+		.fw           = fw,
+		.fh           = fh,
 		.nframes      = 0
 	};
 	glGenFramebuffers(1, &s.fb);
-	spriteResizeFrame(&s, w, h);
+
+	if (!pixels) {
+		spriteResizeFrame(&s, end - start, fh);
+	} else {
+		s.nframes = (end - start) / fw;
+		s.texture = textureGen(end - start, fh, s.pixels);
+		fbAttach(s.fb, s.texture);
+	}
 
 	return s;
 }
@@ -107,7 +115,10 @@ static void createFrame(int _pos)
 	int w = s->fw * (s->nframes + 1);
 	int stride = w * sizeof(struct rgba);
 
-	s->pixels = realloc(s->pixels, s->fh * stride);
+	if ((s->pixels = realloc(s->pixels, s->fh * stride)) == NULL) {
+		fprintf(stderr, "error: couldn't allocate memory\n");
+		exit(-1);
+	}
 	memset(s->pixels, 0, s->fh * stride);
 
 	if (s->texture)
@@ -130,14 +141,29 @@ static void createFrame(int _pos)
 	s->nframes++;
 }
 
-static void createSprite(int w, int h)
+static void addSprite(struct sprite s)
 {
-	struct sprite s = sprite(w, h);
-
 	session->sprites = realloc(session->sprites, (session->nsprites + 1) * sizeof(s));
 	session->sprites[session->nsprites] = s;
 	session->sprite = &session->sprites[session->nsprites];
 	session->nsprites++;
+}
+
+static void loadSprite(const char *path)
+{
+	struct tga *t;
+	struct sprite s;
+
+	if ((t = tgaDecode(path)) == NULL) {
+		fprintf(stderr, "fatal: couldn't load image '%s'\n", path);
+		exit(1);
+	}
+	s = sprite(t->height, t->height, (uint8_t *)t->data, 0, t->width);
+
+	fprintf(stderr, "loading image '%s' (%dx%dx%d)\n", path, t->width, t->height, t->depth);
+
+	addSprite(s);
+	free(t);
 }
 
 static bool spriteWithinBoundary(struct sprite *s, int x, int y)
@@ -202,7 +228,7 @@ static void spriteRender(struct sprite *s)
 	int sy = y < y1 ? 1 : -1;
 	int err = dx - dy;
 	int size = session->brush.size;
-		
+
 	if (s->draw.drawing > DRAW_STARTED) {
 		for (;;) {
 			glRecti(x, y, x + size, y + size);
@@ -256,7 +282,7 @@ static void spriteStopDrawing(struct sprite *s)
 
 static struct rgba sample(int x, int y)
 {
-	struct rgba pixel;	
+	struct rgba pixel;
 	glReadPixels(x, session->h - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel);
 	return pixel;
 }
@@ -458,10 +484,10 @@ static void boundaryDraw(struct rgba color, int x, int y, int w, int h)
 {
 	glColor4ubv((GLubyte*)&color);
 	glBegin(GL_LINE_LOOP);
-	glVertex3f(x,     y, 0);
-	glVertex3f(x + w, y, 0);
-	glVertex3f(x + w, y + h, 0);
-	glVertex3f(x,     y + h, 0);
+	glVertex3f(x - 0.5,     y - 0.5, 0);
+	glVertex3f(x + w + 0.5, y - 0.5, 0);
+	glVertex3f(x + w + 0.5, y + h + 0.5, 0);
+	glVertex3f(x - 0.5,     y + h + 0.5, 0);
 	glEnd();
 }
 
@@ -487,7 +513,7 @@ static void drawBoundaries()
 	);
 }
 
-int main(void)
+int main(int argc, char *argv[])
 {
 	GLFWwindow* window;
 	glfwSetErrorCallback(errorCallback);
@@ -524,10 +550,13 @@ int main(void)
 	session->bg         = WHITE;
 	session->started    = glfwGetTime();
 	session->fps        = 6;
-	
-	createSprite(64, 64);
-	createFrame(-1);
 
+	if (argc > 1) {
+		loadSprite(argv[1]);
+	} else {
+		addSprite(sprite(64, 64, NULL, 0, 64));
+		createFrame(-1);
+	}
 	reset();
 
 	// Color palette
@@ -540,7 +569,7 @@ int main(void)
 	setFgColor(WHITE);
 
 	while (!glfwWindowShouldClose(window)) {
-		double mx, my; 
+		double mx, my;
 
 		glfwGetCursorPos(window, &mx, &my);
 
@@ -574,7 +603,7 @@ int main(void)
 			textureDraw(s->texture, s->fw * s->nframes, s->fh, 0, 0, s->fw * s->nframes, s->fh, 0, 0);
 
 			if (s->nframes > 1 && !session->paused) {
-				glTranslatef(-s->fw, 0, 0.0f);
+				glTranslatef(-s->fw - 0.5, 0, 0.0f);
 				spriteRenderCurrentFrame(s);
 			}
 		}
