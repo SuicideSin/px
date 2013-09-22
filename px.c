@@ -453,16 +453,20 @@ static void pause()
 	session->paused = !session->paused;
 }
 
+static void saveTo(const char *filename)
+{
+	if (tgaEncode((struct tga *)session->sprite->image, filename) != 0) {
+		fprintf(stderr, "error: unable to save copy to '%s'", filename);
+	}
+}
+
 static void saveCopy()
 {
 	size_t len = strlen(session->filepath);
 	char filename[len + 1 + 3]; // <filename>.001
 
 	sprintf(filename, "%s.%.3d", session->filepath, 1);
-
-	if (tgaEncode((struct tga *)session->sprite->image, filename) != 0) {
-		fprintf(stderr, "error: unable to save copy to '%s'", filename);
-	}
+	saveTo(filename);
 }
 
 static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int mods)
@@ -493,7 +497,7 @@ static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int 
 	} else if (mods & GLFW_MOD_CONTROL && key == GLFW_KEY_W) {
 		saveCopy();
 	} else if (mods & GLFW_MOD_CONTROL && key == GLFW_KEY_S) {
-		// TODO: Save (overwrite)
+		saveTo(session->filepath);
 	}
 }
 
