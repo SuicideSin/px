@@ -67,7 +67,7 @@ struct session {
 	int           fps;
 	bool          paused;
 	double        started;
-	const char    *filepath;
+	char          *filepath;
 	struct sprite *sprites;
 	struct sprite *sprite;
 	struct brush  brush;

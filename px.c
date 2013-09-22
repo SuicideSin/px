@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <errno.h>
+#include <time.h>
 
 #include "texture.h"
 #include "px.h"
@@ -157,14 +159,20 @@ static void addSprite(struct sprite s)
 	session->nsprites++;
 }
 
-static void loadSprites(const char *path)
+static bool loadSprites(char *path)
 {
 	struct tga *t;
 	struct sprite s;
 
+	session->filepath = path;
+
 	if ((t = tgaDecode(path)) == NULL) {
-		fprintf(stderr, "fatal: couldn't load image '%s'\n", path);
-		exit(1);
+		if (errno == ENOENT) {
+			return false;
+		} else {
+			fprintf(stderr, "fatal: couldn't load image '%s'\n", path);
+			exit(1);
+		}
 	}
 	s = sprite(t->height, t->height, (uint8_t *)t->data, 0, t->width);
 	s.image = t;
@@ -173,7 +181,7 @@ static void loadSprites(const char *path)
 
 	addSprite(s);
 
-	session->filepath = path;
+	return true;
 }
 
 static bool spriteWithinBoundary(struct sprite *s, int x, int y)
@@ -506,7 +514,9 @@ static void saveTo(const char *filename)
 	short w = s->fw * s->nframes;
 	short h = s->fh;
 
-	if (tgaEncode((uint32_t *)tmp, w, h, t->depth, filename) != 0) {
+	char depth = t ? t->depth : 32;
+
+	if (tgaEncode((uint32_t *)tmp, w, h, depth, filename) != 0) {
 		fprintf(stderr, "error: unable to save copy to '%s'", filename);
 	}
 	free(tmp);
@@ -593,6 +603,24 @@ static void drawBoundaries()
 	);
 }
 
+static void createBlank()
+{
+	addSprite(sprite(64, 64, NULL, 0, 64));
+	createFrame(-1);
+}
+
+static void createFilename(char **filename)
+{
+	char timestr[128];
+	time_t t = time(NULL);
+	struct tm *tmp = localtime(&t);
+
+	*filename = malloc(sizeof(timestr));
+
+	strftime(timestr, sizeof(timestr), "%Y-%m-%d-%H%M%S", tmp);
+	sprintf(*filename, "%s.tga", timestr);
+}
+
 int main(int argc, char *argv[])
 {
 	GLFWwindow* window;
@@ -633,11 +661,14 @@ int main(int argc, char *argv[])
 	session->filepath   = NULL;
 
 	if (argc > 1) {
-		loadSprites(argv[1]);
 		glfwSetWindowTitle(window, argv[1]);
+
+		if (!loadSprites(argv[1])) {
+			createBlank();
+		}
 	} else {
-		addSprite(sprite(64, 64, NULL, 0, 64));
-		createFrame(-1);
+		createFilename(&session->filepath);
+		createBlank();
 	}
 	reset();
 
