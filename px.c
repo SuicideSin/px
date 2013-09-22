@@ -102,22 +102,21 @@ static struct sprite sprite(int fw, int fh, uint8_t *pixels, int start, int end)
 	return s;
 }
 
-static void spriteReadPixels(struct sprite *s, struct rgba **tmp)
+static struct rgba *spriteReadPixels(struct sprite *s)
 {
-	if (*tmp == NULL) {
-		*tmp = malloc(sizeof(struct rgba) * s->fw * s->nframes * s->fh);
-	}
+	struct rgba *tmp = malloc(sizeof(struct rgba) * s->fw * s->nframes * s->fh);
+
 	glBindFramebuffer(GL_FRAMEBUFFER, s->fb);
-	glReadPixels(0, 0, s->fw * s->nframes, s->fh, GL_RGBA, GL_UNSIGNED_BYTE, *tmp);
+	glReadPixels(0, 0, s->fw * s->nframes, s->fh, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	return tmp;
 }
 
 static void createFrame(int _pos)
 {
 	struct sprite *s = session->sprite;
-	struct rgba *tmp = NULL;
-
-	spriteReadPixels(s, &tmp); // Create copy of framebuffer pixels
+	struct rgba *tmp = spriteReadPixels(s); // Create copy of framebuffer pixels
 
 	int w = s->fw * (s->nframes + 1);
 	int stride = w * sizeof(struct rgba);
@@ -500,13 +499,17 @@ static void pause()
 
 static void saveTo(const char *filename)
 {
-	struct tga *t = (struct tga *)session->sprite->image;
+	struct sprite *s = session->sprite;
+	struct tga *t = (struct tga *)s->image;
+	struct rgba *tmp = spriteReadPixels(session->sprite);
 
-	spriteReadPixels(session->sprite, (struct rgba **)&t->data);
+	short w = s->fw * s->nframes;
+	short h = s->fh;
 
-	if (tgaEncode(t, filename) != 0) {
+	if (tgaEncode((uint32_t *)tmp, w, h, t->depth, filename) != 0) {
 		fprintf(stderr, "error: unable to save copy to '%s'", filename);
 	}
+	free(tmp);
 }
 
 static void saveCopy()

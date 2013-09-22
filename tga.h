@@ -24,4 +24,4 @@ struct tga {
 };
 
 struct tga *tgaDecode(const char *path);
-int         tgaEncode(struct tga *t, const char *path);
+int         tgaEncode(uint32_t *data, short w, short h, char depth, const char *path);
