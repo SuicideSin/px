@@ -140,6 +140,8 @@ static void createFrame(int _pos)
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	s->nframes++;
+
+	free(tmp);
 }
 
 static void addSprite(struct sprite s)
