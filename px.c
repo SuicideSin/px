@@ -85,7 +85,7 @@ static void errorCallback(int error, const char* description)
 
 static int pixelOffset(int x, int y, int stride)
 {
-	return (y - 0) * stride + (x - 0) * sizeof(struct rgba);
+	return y * stride + x * sizeof(struct rgba);
 }
 
 static void spriteSnapshot(struct sprite *s)
