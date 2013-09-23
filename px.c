@@ -25,6 +25,7 @@
 #define DARKGREY         rgba(64, 64, 64, 255)
 #define TRANSPARENT      rgba(0, 0, 0, 0)
 
+static struct rgba *spriteReadPixels(struct sprite *s);
 static void paletteAddColor(int x, int y, struct rgba color);
 static void boundaryDraw(struct rgba color, int x, int y, int w, int h);
 static void setupPalette();
@@ -87,6 +88,69 @@ static int pixelOffset(int x, int y, int stride)
 	return (y - 0) * stride + (x - 0) * sizeof(struct rgba);
 }
 
+static void spriteSnapshot(struct sprite *s)
+{
+	struct rgba *pixels = spriteReadPixels(s);
+
+	if (s->snapshot < s->nsnapshots - 1) {
+		for (int i = s->snapshot; i < s->nsnapshots; i++) {
+			free(s->snapshots[i]);
+		}
+		s->nsnapshots = s->snapshot + 1;
+	}
+	s->snapshots = realloc(s->snapshots, (s->nsnapshots + 1) * sizeof(*s->snapshots));
+	s->snapshots[s->nsnapshots] = pixels;
+	s->nsnapshots++;
+	s->snapshot++;
+}
+
+static void spriteFlash(struct sprite *s)
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, s->fb);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glClearColor(0.75, 0.0, 0.0, 1.0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+static void spriteRestoreSnapshot(struct sprite *s, int snapshot)
+{
+	s->snapshot = snapshot;
+	
+	glBindFramebuffer(GL_FRAMEBUFFER, s->fb);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glClearColor(0.0, 0.0, 0.0, 1.0);
+	glDrawPixels(s->fw * s->nframes, s->fh, GL_RGBA, GL_UNSIGNED_BYTE, s->snapshots[snapshot]);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+static void spriteRedo(struct sprite *s)
+{
+	if (s->snapshot == s->nsnapshots - 1) { // Max redos reached
+		spriteFlash(s);
+		return;
+	}
+	spriteRestoreSnapshot(s, s->snapshot + 1);
+}
+
+static void spriteUndo(struct sprite *s)
+{
+	if (s->snapshot == 0) { // Max undos reached
+		spriteFlash(s);
+		return;
+	}
+	spriteRestoreSnapshot(s, s->snapshot - 1);
+}
+
+static void undo()
+{
+	spriteUndo(session->sprite);
+}
+
+static void redo()
+{
+	spriteRedo(session->sprite);
+}
+
 static void spriteResizeFrame(struct sprite *s, int w, int h)
 {
 	w *= s->nframes;
@@ -117,7 +181,10 @@ static struct sprite sprite(int fw, int fh, uint8_t *pixels, int start, int end)
 		.draw.color   = TRANSPARENT,
 		.fw           = fw,
 		.fh           = fh,
-		.nframes      = 0
+		.nframes      = 0,
+		.snapshot     = -1,
+		.snapshots    = NULL,
+		.nsnapshots   = 0
 	};
 	glGenFramebuffers(1, &s.fb);
 
@@ -357,6 +424,7 @@ static void spriteStartDrawing(struct sprite *s, int x, int y)
 static void spriteStopDrawing(struct sprite *s)
 {
 	s->draw.drawing = DRAW_ENDED;
+	spriteSnapshot(s);
 }
 
 static struct rgba sample(int x, int y)
@@ -574,6 +642,8 @@ static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int 
 		case '.':             zoom(+1);         return;
 		case '[':             brushSize(-1);    return;
 		case ']':             brushSize(+1);    return;
+		case GLFW_KEY_U:      undo();           return;
+		case GLFW_KEY_R:      redo();           return;
 		case GLFW_KEY_SPACE:  pause();          return;
 		case GLFW_KEY_LEFT:   move(-50, 0);     return;
 		case GLFW_KEY_RIGHT:  move(+50, 0);     return;
@@ -697,6 +767,9 @@ int main(int argc, char *argv[])
 		createBlank();
 	}
 	reset();
+
+	// Create first snapshot for undos.
+	spriteSnapshot(session->sprite);
 
 	// Color palette
 	palette = malloc(sizeof(*palette));

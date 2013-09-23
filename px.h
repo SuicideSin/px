@@ -53,6 +53,9 @@ struct sprite {
 	int           nframes;
 	struct draw   draw;
 	void          *image;
+	int           snapshot;
+	struct rgba   **snapshots;
+	int           nsnapshots;
 };
 
 struct session {
