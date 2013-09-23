@@ -90,16 +90,21 @@ static int pixelOffset(int x, int y, int stride)
 
 static void spriteSnapshot(struct sprite *s)
 {
-	struct rgba *pixels = spriteReadPixels(s);
-
+	struct snapshot snap = (struct snapshot){
+		.pixels = spriteReadPixels(s),
+		.x      = 0,
+		.y      = 0,
+		.w      = s->fw * s->nframes,
+		.h      = s->fh
+	};
 	if (s->snapshot < s->nsnapshots - 1) {
 		for (int i = s->snapshot; i < s->nsnapshots; i++) {
-			free(s->snapshots[i]);
+			free(s->snapshots[i].pixels);
 		}
 		s->nsnapshots = s->snapshot + 1;
 	}
 	s->snapshots = realloc(s->snapshots, (s->nsnapshots + 1) * sizeof(*s->snapshots));
-	s->snapshots[s->nsnapshots] = pixels;
+	s->snapshots[s->nsnapshots] = snap;
 	s->nsnapshots++;
 	s->snapshot++;
 }
@@ -115,11 +120,13 @@ static void spriteFlash(struct sprite *s)
 static void spriteRestoreSnapshot(struct sprite *s, int snapshot)
 {
 	s->snapshot = snapshot;
+
+	struct snapshot snap = s->snapshots[snapshot];
 	
 	glBindFramebuffer(GL_FRAMEBUFFER, s->fb);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glClearColor(0.0, 0.0, 0.0, 1.0);
-	glDrawPixels(s->fw * s->nframes, s->fh, GL_RGBA, GL_UNSIGNED_BYTE, s->snapshots[snapshot]);
+	glDrawPixels(snap.w, snap.h, GL_RGBA, GL_UNSIGNED_BYTE, snap.pixels);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 

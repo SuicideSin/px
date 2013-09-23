@@ -43,19 +43,25 @@ struct draw {
 	struct point prev;
 };
 
+struct snapshot {
+	struct rgba *pixels;
+	int x, y;
+	int w, h;
+};
+
 struct sprite {
-	GLuint        texture;
-	GLuint        fb;
-	uint8_t       *pixels;
-	bool          dirty;
-	int           fw;
-	int           fh;
-	int           nframes;
-	struct draw   draw;
-	void          *image;
-	int           snapshot;
-	struct rgba   **snapshots;
-	int           nsnapshots;
+	GLuint          texture;
+	GLuint          fb;
+	uint8_t         *pixels;
+	bool            dirty;
+	int             fw;
+	int             fh;
+	int             nframes;
+	struct draw     draw;
+	void            *image;
+	int             snapshot;
+	struct snapshot *snapshots;
+	int             nsnapshots;
 };
 
 struct session {
