@@ -16,6 +16,9 @@
 #include "px.h"
 #include "tga.h"
 
+#define PX_NAME "px"
+#define PX_MAX_LOG_SIZE 128
+
 #define rgba(r, g, b, a) ((struct rgba){r, g, b, a})
 #define WHITE            rgba(255, 255, 255, 255)
 #define GREY             rgba(128, 128, 128, 255)
@@ -28,6 +31,32 @@ static void setupPalette();
 
 struct session     *session;
 struct palette     *palette;
+
+static void debug(const char *str, ...)
+{
+	char msg[PX_MAX_LOG_SIZE];
+	va_list ap;
+
+	va_start(ap, str);
+	vsnprintf(msg, sizeof(msg), str, ap);
+	va_end(ap);
+
+	fprintf(stderr, "%s: %s\n", PX_NAME, msg);
+}
+
+static void fatal(const char *err, ...)
+{
+	char msg[PX_MAX_LOG_SIZE];
+	va_list ap;
+
+	va_start(ap, err);
+	vsnprintf(msg, sizeof(msg), err, ap);
+	va_end(ap);
+
+	fprintf(stderr, "%s: fatal: %s\n", PX_NAME, msg);
+
+	exit(EXIT_FAILURE);
+}
 
 static void fbClear()
 {
@@ -43,8 +72,7 @@ static void fbAttach(GLuint fb, GLuint tex)
 	GLenum status;
 
 	if ((status = glCheckFramebufferStatus(GL_FRAMEBUFFER)) != GL_FRAMEBUFFER_COMPLETE) {
-		fprintf(stderr, "glCheckFramebufferStatus: error %u", status);
-		exit(1);
+		fatal("glCheckFramebufferStatus: error %u", status);
 	}
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
@@ -124,8 +152,7 @@ static void createFrame(int _pos)
 	int stride = w * sizeof(struct rgba);
 
 	if ((s->pixels = realloc(s->pixels, s->fh * stride)) == NULL) {
-		fprintf(stderr, "error: couldn't allocate memory\n");
-		exit(-1);
+		fatal("couldn't allocate memory");
 	}
 	memset(s->pixels, 0, s->fh * stride);
 
@@ -170,14 +197,13 @@ static bool loadSprites(char *path)
 		if (errno == ENOENT) {
 			return false;
 		} else {
-			fprintf(stderr, "fatal: couldn't load image '%s'\n", path);
-			exit(1);
+			fatal(" couldn't load image '%s'", path);
 		}
 	}
 	s = sprite(t->height, t->height, (uint8_t *)t->data, 0, t->width);
 	s.image = t;
 
-	fprintf(stderr, "loading image '%s' (%dx%dx%d)\n", path, t->width, t->height, t->depth);
+	debug("loading image '%s' (%dx%dx%d)\n", path, t->width, t->height, t->depth);
 
 	addSprite(s);
 
@@ -517,7 +543,7 @@ static void saveTo(const char *filename)
 	char depth = t ? t->depth : 32;
 
 	if (tgaEncode((uint32_t *)tmp, w, h, depth, filename) != 0) {
-		fprintf(stderr, "error: unable to save copy to '%s'", filename);
+		debug("error: unable to save copy to '%s'", filename);
 	}
 	free(tmp);
 }
