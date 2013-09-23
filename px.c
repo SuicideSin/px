@@ -644,7 +644,7 @@ static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int 
 		case ']':             brushSize(+1);    return;
 		case GLFW_KEY_U:      undo();           return;
 		case GLFW_KEY_R:      redo();           return;
-		case GLFW_KEY_SPACE:  pause();          return;
+		case GLFW_KEY_ENTER:  pause();          return;
 		case GLFW_KEY_LEFT:   move(-50, 0);     return;
 		case GLFW_KEY_RIGHT:  move(+50, 0);     return;
 		case GLFW_KEY_DOWN:   move(0, +50);     return;
