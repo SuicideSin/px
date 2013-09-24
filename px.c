@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <time.h>
 
+#include "color.h"
 #include "texture.h"
 #include "px.h"
 #include "tga.h"
