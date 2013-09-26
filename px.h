@@ -77,3 +77,19 @@ struct session {
 	struct rgba   bg;
 	enum cursor   cursor;
 };
+
+union arg {
+	int          i;
+	unsigned int ui;
+	float        f;
+	const void   *v;
+	struct point p;
+};
+
+struct binding {
+	int             mods;
+	int             key;
+	int             action;
+	void            (*callback)(GLFWwindow *win, const union arg *arg);
+	const union arg arg;
+};

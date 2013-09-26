@@ -19,6 +19,7 @@
 
 #define PX_NAME "px"
 #define PX_MAX_LOG_SIZE 128
+#define LENGTH(x) (sizeof(x) / sizeof(x[0]))
 
 #define rgba(r, g, b, a) ((struct rgba){r, g, b, a})
 #define WHITE            rgba(255, 255, 255, 255)
@@ -30,9 +31,22 @@ static struct rgba *spriteReadPixels(struct sprite *s);
 static void paletteAddColor(int x, int y, struct rgba color);
 static void boundaryDraw(struct rgba color, int x, int y, int w, int h);
 static void setupPalette();
+static void createFrame(GLFWwindow *, const union arg *);
+static void saveCopy(GLFWwindow *, const union arg *);
+static void save(GLFWwindow *, const union arg *);
+static void move(GLFWwindow *, const union arg *);
+static void zoom(GLFWwindow *, const union arg *);
+static void undo(GLFWwindow *, const union arg *);
+static void redo(GLFWwindow *, const union arg *);
+static void pause(GLFWwindow *, const union arg *);
+static void windowClose(GLFWwindow *, const union arg *);
+static void brushSize(GLFWwindow *, const union arg *);
+static void adjustFPS(GLFWwindow *, const union arg *);
 
 struct session     *session;
 struct palette     *palette;
+
+#include "config.h"
 
 static void debug(const char *str, ...)
 {
@@ -218,7 +232,7 @@ static struct rgba *spriteReadPixels(struct sprite *s)
 	return tmp;
 }
 
-static void createFrame(int _pos)
+static void createFrame()
 {
 	struct sprite *s = session->sprite;
 	struct rgba *tmp = spriteReadPixels(s); // Create copy of framebuffer pixels
@@ -493,10 +507,10 @@ static void reset()
 	center();
 }
 
-static void move(int x, int y)
+static void move(GLFWwindow *_, const union arg *arg)
 {
-	session->offx += x;
-	session->offy += y;
+	session->offx += arg->p.x;
+	session->offy += arg->p.y;
 
 	center();
 }
@@ -570,17 +584,17 @@ static void setupPalette()
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-static void brushSize(int n)
+static void brushSize(GLFWwindow *_, const union arg *arg)
 {
-	session->brush.size += n;
+	session->brush.size += arg->i;
 
 	if (session->brush.size < 1)
 		session->brush.size = 1;
 }
 
-static void zoom(int n)
+static void zoom(GLFWwindow *_, const union arg *arg)
 {
-	session->zoom += n;
+	session->zoom += arg->i;
 
 	if (session->zoom < 1)
 		session->zoom = 1;
@@ -589,14 +603,14 @@ static void zoom(int n)
 	fbClear();
 }
 
-static void windowClose(GLFWwindow *win)
+static void windowClose(GLFWwindow *win, const union arg *_)
 {
 	glfwSetWindowShouldClose(win, GL_TRUE);
 }
 
-static void adjustFPS(int n)
+static void adjustFPS(GLFWwindow *_, const union arg *arg)
 {
-	session->fps += n;
+	session->fps += arg->i;
 
 	if (session->fps < 1)
 		session->fps = 1;
@@ -633,44 +647,27 @@ static void saveCopy()
 	saveTo(filename);
 }
 
+static void save()
+{
+	saveTo(session->filepath);
+}
+
 static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int mods)
 {
+	for (int i = 0; i < LENGTH(bindings); i++) {
+		if (bindings[i].key == key
+			&& bindings[i].mods == mods
+			&& bindings[i].action == action
+			&& bindings[i].callback) {
+			bindings[i].callback(win, &(bindings[i].arg));
+			return;
+		}
+	}
 	if (key == GLFW_KEY_LEFT_CONTROL) {
 		session->cursor = (action == GLFW_PRESS) ? CURSOR_SAMPLER : CURSOR_DEFAULT;
 	}
 	if (key == GLFW_KEY_LEFT_SHIFT) {
 		session->cursor = (action == GLFW_PRESS) ? CURSOR_MULTI : CURSOR_DEFAULT;
-	}
-
-	if (action != GLFW_PRESS)
-		return;
-
-	switch (key) {
-		case ',':             zoom(-1);         return;
-		case '.':             zoom(+1);         return;
-		case '[':             brushSize(-1);    return;
-		case ']':             brushSize(+1);    return;
-		case GLFW_KEY_U:      undo();           return;
-		case GLFW_KEY_R:      redo();           return;
-		case GLFW_KEY_ENTER:  pause();          return;
-		case GLFW_KEY_LEFT:   move(-50, 0);     return;
-		case GLFW_KEY_RIGHT:  move(+50, 0);     return;
-		case GLFW_KEY_DOWN:   move(0, +50);     return;
-		case GLFW_KEY_UP:     move(0, -50);     return;
-		case GLFW_KEY_ESCAPE: windowClose(win); return;
-	}
-	if (mods & GLFW_MOD_SHIFT && key == GLFW_KEY_EQUAL) {
-		adjustFPS(+1);
-	} else if (key == GLFW_KEY_MINUS) {
-		adjustFPS(-1);
-	} else if (mods & GLFW_MOD_CONTROL && key == GLFW_KEY_F) {
-		createFrame(-1);
-	} else if (mods & GLFW_MOD_CONTROL && key == 'd') {
-		// TODO: Remove frame
-	} else if (mods & GLFW_MOD_CONTROL && key == GLFW_KEY_W) {
-		saveCopy();
-	} else if (mods & GLFW_MOD_CONTROL && key == GLFW_KEY_S) {
-		saveTo(session->filepath);
 	}
 }
 
@@ -710,7 +707,7 @@ static void drawBoundaries()
 static void createBlank()
 {
 	addSprite(sprite(64, 64, NULL, 0, 64));
-	createFrame(-1);
+	createFrame(NULL, NULL);
 }
 
 static void createFilename(char **filename)
