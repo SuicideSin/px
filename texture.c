@@ -2,6 +2,7 @@
 // texture.c
 // texture manipulation
 //
+#define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
 
 void textureDraw(id, tw, th, x, y, w, h, sx, sy)
@@ -58,6 +59,14 @@ GLuint textureGen(int w, int h, uint8_t *data)
 				 data);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
+
+	return id;
+}
+
+GLuint fbGen()
+{
+	GLuint id;
+	glGenFramebuffers(1, &id);
 
 	return id;
 }

@@ -194,7 +194,7 @@ static struct sprite sprite(int fw, int fh, uint8_t *pixels, int start, int end)
 	struct sprite s = (struct sprite){
 		.pixels       = pixels,
 		.texture      = 0,
-		.fb           = 0,
+		.fb           = fbGen(),
 		.dirty        = false,
 		.draw.prev.x  = -1,
 		.draw.prev.y  = -1,
@@ -209,7 +209,6 @@ static struct sprite sprite(int fw, int fh, uint8_t *pixels, int start, int end)
 		.snapshots    = NULL,
 		.nsnapshots   = 0
 	};
-	glGenFramebuffers(1, &s.fb);
 
 	if (!pixels) {
 		spriteResizeFrame(&s, end - start, fh);
@@ -556,9 +555,6 @@ static void setupPalette()
 
 	palette->texture = textureGen(s, palette->h, palette->pixels);
 
-	if (!palette->fb)
-		glGenFramebuffers(1, &palette->fb);
-
 	fbAttach(palette->fb, palette->texture);
 	glBindFramebuffer(GL_FRAMEBUFFER, palette->fb);
 
@@ -769,7 +765,7 @@ int main(int argc, char *argv[])
 	palette = malloc(sizeof(*palette));
 	palette->pixels = NULL;
 	palette->texture = 0;
-	palette->fb = 0;
+	palette->fb = fbGen();
 
 	fbClear();
 	setupPalette();
