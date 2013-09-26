@@ -19,10 +19,10 @@ static float hue(float h, float m1, float m2)
 
 struct rgba hsla2rgba(struct hsla hsla)
 {
-	float h = hsla.h,
-	      s = hsla.s,
-	      l = hsla.l,
-	      a = hsla.a;
+	float h = (float)hsla.h,
+	      s = (float)hsla.s,
+	      l = (float)hsla.l,
+	      a = (float)hsla.a;
 
 	h = fmod(h, 1.0);
 
@@ -30,18 +30,18 @@ struct rgba hsla2rgba(struct hsla hsla)
 	float m1 = l * 2 - m2;
 
 	return (struct rgba){
-		hue(h + 1.0/3.0, m1, m2),
-		hue(h,           m1, m2),
-		hue(h - 1.0/3.0, m1, m2), a
+		hue(h + 1.0/3.0, m1, m2) * 255,
+		hue(h,           m1, m2) * 255,
+		hue(h - 1.0/3.0, m1, m2) * 255, a * 255
 	};
 }
 
 struct hsla rgba2hsla(struct rgba rgba)
 {
-	float r = rgba.r,
-	      g = rgba.g,
-	      b = rgba.b,
-	      a = rgba.a;
+	float r = (float)rgba.r/255,
+	      g = (float)rgba.g/255,
+	      b = (float)rgba.b/255,
+	      a = (float)rgba.a/255;
 
 	float mx = max(max(r, g), b),
 	      mn = min(min(r, g), b);

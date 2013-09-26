@@ -3,6 +3,7 @@
 //
 struct palette {
 	GLuint  texture;
+	GLuint  fb;
 	int     h;
 	int     size;
 	uint8_t *pixels;

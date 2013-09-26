@@ -74,6 +74,12 @@ static void fatal(const char *err, ...)
 	exit(EXIT_FAILURE);
 }
 
+static void fillRect(int x1, int y1, int x2, int y2, struct rgba color)
+{
+	glColor4ubv((GLubyte*)&color);
+	glRecti(x1, y1, x2, y2);
+}
+
 static void fbClear()
 {
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -96,11 +102,6 @@ static void fbAttach(GLuint fb, GLuint tex)
 static void errorCallback(int error, const char* description)
 {
 	fputs(description, stderr);
-}
-
-static int pixelOffset(int x, int y, int stride)
-{
-	return y * stride + x * sizeof(struct rgba);
 }
 
 static void spriteSnapshot(struct sprite *s)
@@ -307,9 +308,6 @@ static bool spriteWithinBoundary(struct sprite *s, int x, int y)
 
 static void drawCursor(GLFWwindow *win, int x, int y, enum cursor c)
 {
-	if (!spriteWithinBoundary(session->sprite, x, y))
-		return;
-
 	int s = session->brush.size * session->zoom;
 
 	int cx = x - (x % session->zoom) + 0.5;
@@ -319,28 +317,24 @@ static void drawCursor(GLFWwindow *win, int x, int y, enum cursor c)
 
 	switch (c) {
 	case CURSOR_DEFAULT:
-		glColor4ubv((GLubyte*)&session->fg);
-		glRecti(cx, cy, cx + s, cy + s);
+		if (spriteWithinBoundary(session->sprite, x, y)) {
+			fillRect(cx, cy, cx + s, cy + s, session->fg);
+		} else {
+			boundaryDraw(GREY, cx, cy, s, s);
+		}
 		break;
 	case CURSOR_SAMPLER:
 		boundaryDraw(WHITE, cx, cy, s, s);
 		break;
 	case CURSOR_MULTI:
 		for (int i = 0; i < sp->nframes; i++) {
-			glColor4ubv((GLubyte*)&session->fg);
-			glRecti(cx + i * sp->fw * session->zoom,
-					cy,
-					cx + i * sp->fw * session->zoom + s,
-					cy + s);
+			fillRect(cx + i * sp->fw * session->zoom,
+			         cy,
+			         cx + i * sp->fw * session->zoom + s,
+			         cy + s, session->fg);
 		}
 		break;
 	}
-}
-
-static void setPixel(uint8_t *data, int x, int y, int stride, struct rgba color)
-{
-	int off = pixelOffset(x, y, stride);
-	*(struct rgba *)(&data[off]) = color;
 }
 
 static void spriteDraw(struct sprite *s, int x, int y)
@@ -467,18 +461,9 @@ static void pickColor(int x, int y)
 	setFgColor(sample(x, y));
 }
 
-static void paletteSetPixel(int x, int y, struct rgba color)
-{
-	setPixel(palette->pixels, x, y, session->w * sizeof(color), color);
-}
-
 static void paletteAddColor(int x, int y, struct rgba color)
 {
-	for (int i = x; i < x + palette->size; i++) {
-		for (int j = y; j < y + palette->size; j++) {
-			paletteSetPixel(i, j, color);
-		}
-	}
+	fillRect(x, y, x + palette->size, y + palette->size, color);
 }
 
 static void center()
@@ -558,30 +543,34 @@ static void cursorPosCallback(GLFWwindow *win, double fx, double fy)
 static void setupPalette()
 {
 	int x = 0, y = 0;
-	int s = palette->size;
+	int ncolors = 32;
+	int s = palette->size = floor((float)session->h / (float)ncolors);
+	int stride = s * sizeof(struct rgba);
 
-	palette->h = (255 / (session->w / s)) * s + s;
-	palette->pixels = realloc(palette->pixels, session->w * palette->h * sizeof(struct rgba));
-	memset(palette->pixels, 0, session->w * palette->h * sizeof(struct rgba));
+	palette->h = session->h;
+	palette->pixels = realloc(palette->pixels, palette->h * stride);
+	memset(palette->pixels, 0, palette->h * stride);
 
-	palette->texture = textureGen(session->w, palette->h, palette->pixels);
-	glBindTexture(GL_TEXTURE_2D, palette->texture);
+	if (palette->texture)
+		glDeleteTextures(1, &palette->texture);
 
-	for (int r = 0; r <= 255; r += 51) {
-		for (int g = 0; g <= 255; g += 51) {
-			for (int b = 0; b <= 255; b += 51) {
-				paletteAddColor(x, y, rgba(r, g, b, 255));
+	palette->texture = textureGen(s, palette->h, palette->pixels);
 
-				if (x + s > session->w) {
-					y += s;
-					x = 0;
-				} else {
-					x += s;
-				}
-			}
-		}
+	if (!palette->fb)
+		glGenFramebuffers(1, &palette->fb);
+
+	fbAttach(palette->fb, palette->texture);
+	glBindFramebuffer(GL_FRAMEBUFFER, palette->fb);
+
+	fbClear();
+
+	for (int i = 0; i < ncolors; i++) {
+		paletteAddColor(x, y,
+			hsla2rgba((struct hsla){i * 1.0f/(float)ncolors, 0.5, 0.5, 1.0})
+		);
+		y += s;
 	}
-	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 static void brushSize(GLFWwindow *_, const union arg *arg)
@@ -779,7 +768,8 @@ int main(int argc, char *argv[])
 	// Color palette
 	palette = malloc(sizeof(*palette));
 	palette->pixels = NULL;
-	palette->size = 20;
+	palette->texture = 0;
+	palette->fb = 0;
 
 	fbClear();
 	setupPalette();
@@ -787,13 +777,15 @@ int main(int argc, char *argv[])
 
 	while (!glfwWindowShouldClose(window)) {
 		double mx, my;
+		int    w, h;
 
+		glfwGetFramebufferSize(window, &w, &h);
 		glfwGetCursorPos(window, &mx, &my);
 
-		glViewport(0, 0, session->w, session->h);
+		glViewport(0, 0, w, h);
 		glMatrixMode(GL_PROJECTION);
 		glLoadIdentity();
-		glOrtho(0.0, session->w, session->h, 0.0, -1.0, 1.0);
+		glOrtho(0.0, w, h, 0.0, -1.0, 1.0);
 		glMatrixMode(GL_MODELVIEW);
 
 		glLoadIdentity();
@@ -826,11 +818,10 @@ int main(int argc, char *argv[])
 		}
 		glPopMatrix();
 
-		textureRefresh(palette->texture, session->w, palette->h, palette->pixels);
-		textureDraw(palette->texture, session->w, palette->h, 0, 0, session->w, palette->h, 0, 0);
-
+		textureDraw(palette->texture, palette->size, palette->h, 0, 0, palette->size, palette->h, 0, 0);
 		drawCursor(window, floor(mx), floor(my), session->cursor);
 
+		glDisable(GL_TEXTURE_2D);
 		glFlush();
 		glfwSwapBuffers(window);
 		glfwPollEvents();

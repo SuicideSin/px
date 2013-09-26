@@ -4,6 +4,8 @@ struct rgba {
 };
 
 struct hsla {
-	uint8_t h, s, l, a;
+	float h, s, l, a;
 };
 
+struct rgba hsla2rgba(struct hsla hsla);
+struct hsla rgba2hsla(struct rgba rgba);
