@@ -326,11 +326,14 @@ static void drawCursor(GLFWwindow *win, int x, int y, enum cursor c)
 		boundaryDraw(WHITE, cx, cy, s, s);
 		break;
 	case CURSOR_MULTI:
-		for (int i = 0; i < sp->nframes; i++) {
-			fillRect(cx + i * sp->fw * session->zoom,
-			         cy,
-			         cx + i * sp->fw * session->zoom + s,
-			         cy + s, session->fg);
+		{
+			int frame = (cx - session->x) / sp->fw;
+			for (int i = 0; i < sp->nframes - frame; i++) {
+				fillRect(cx + i * sp->fw * session->zoom,
+						 cy,
+						 cx + i * sp->fw * session->zoom + s,
+						 cy + s, session->fg);
+			}
 		}
 		break;
 	}
