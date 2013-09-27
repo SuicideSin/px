@@ -80,6 +80,7 @@ struct session {
 };
 
 union arg {
+	bool         b;
 	int          i;
 	unsigned int ui;
 	float        f;

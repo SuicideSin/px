@@ -35,6 +35,7 @@ static void createFrame(GLFWwindow *, const union arg *);
 static void saveCopy(GLFWwindow *, const union arg *);
 static void save(GLFWwindow *, const union arg *);
 static void move(GLFWwindow *, const union arg *);
+static void pan(GLFWwindow *, const union arg *);
 static void zoom(GLFWwindow *, const union arg *);
 static void undo(GLFWwindow *, const union arg *);
 static void redo(GLFWwindow *, const union arg *);
@@ -502,6 +503,21 @@ static void move(GLFWwindow *_, const union arg *arg)
 	center();
 }
 
+static struct point* pan_offset;
+static void pan(GLFWwindow *win, const union arg *arg)
+{
+	if (arg->b) {
+		double x, y;
+		glfwGetCursorPos(win, &x, &y);
+		pan_offset    = malloc(sizeof *pan_offset);
+		pan_offset->x = (int)x;
+		pan_offset->y = (int)y;
+	} else {
+		free(pan_offset);
+		pan_offset = NULL;
+	}
+}
+
 static void fbSizeCallback(GLFWwindow *win, int w, int h)
 {
 	session->w = w;
@@ -532,10 +548,16 @@ static void mouseButtonCallback(GLFWwindow *win, int button, int action, int mod
 static void cursorPosCallback(GLFWwindow *win, double fx, double fy)
 {
 	int x = floor(fx),
-		y = floor(fy);
+	    y = floor(fy);
+
+	if (pan_offset) {
+		move(win, &(union arg){ .p = { x - pan_offset->x, y - pan_offset->y } });
+		pan_offset->x = x;
+		pan_offset->y = y;
+		return;
+	}
 
 	struct sprite *s = session->sprite;
-
 	if (s->draw.drawing == DRAW_STARTED || s->draw.drawing == DRAW_DRAWING) {
 		spriteDraw(s, x, y);
 		s->draw.drawing = DRAW_DRAWING;
