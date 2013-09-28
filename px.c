@@ -21,6 +21,7 @@
 #define PX_MAX_LOG_SIZE 128
 #define LENGTH(x) (sizeof(x) / sizeof(x[0]))
 
+#define point(x, y)      ((struct point){(x), (y)})
 #define rgba(r, g, b, a) ((struct rgba){r, g, b, a})
 #define WHITE            rgba(255, 255, 255, 255)
 #define GREY             rgba(128, 128, 128, 255)
@@ -314,33 +315,39 @@ static bool spriteWithinBoundary(struct sprite *s, int x, int y)
 		session->y <= y && y < (session->y + s->fh * session->zoom);
 }
 
+static struct point nearest(struct point p)
+{
+	return (struct point){
+		.x = p.x - (p.x % session->zoom) + 0.5,
+		.y = p.y - (p.y % session->zoom) + 0.5
+	};
+}
+
 static void drawCursor(GLFWwindow *win, int x, int y, enum tool t)
 {
 	int s = session->tool.u.brush.size * session->zoom;
 
-	int cx = x - (x % session->zoom) + 0.5;
-	int cy = y - (y % session->zoom) + 0.5;
-
+	struct point n = nearest(point(x, y));
 	struct sprite *sp = session->sprite;
 
 	switch (t) {
 	case TOOL_BRUSH:
 		if (spriteWithinBoundary(session->sprite, x, y)) {
-			fillRect(cx, cy, cx + s, cy + s, session->fg);
+			fillRect(n.x, n.y, n.x + s, n.y + s, session->fg);
 		} else {
-			boundaryDraw(GREY, cx, cy, cx + s, cy + s);
+			boundaryDraw(GREY, n.x, n.y, n.x + s, n.y + s);
 		}
 		break;
 	case TOOL_SAMPLER:
-		boundaryDraw(WHITE, cx, cy, cx + s, cy + s);
+		boundaryDraw(WHITE, n.x, n.y, n.x + s, n.y + s);
 		break;
 	case TOOL_MULTI: {
-			int frame = (cx - session->x) / sp->fw;
+			int frame = (n.x - session->x) / sp->fw;
 			for (int i = 0; i < sp->nframes - frame; i++) {
-				fillRect(cx + i * sp->fw * session->zoom,
-						 cy,
-						 cx + i * sp->fw * session->zoom + s,
-						 cy + s, session->fg);
+				fillRect(n.x + i * sp->fw * session->zoom,
+						 n.y,
+						 n.x + i * sp->fw * session->zoom + s,
+						 n.y + s, session->fg);
 			}
 		}
 		break;
@@ -352,7 +359,7 @@ static void drawCursor(GLFWwindow *win, int x, int y, enum tool t)
 				glLogicOp(GL_COPY);
 			}
 			if (m->state == MARQUEE_ENDED) {
-				boundaryDraw(WHITE, cx, cy, cx + 1, cy + 1);
+				boundaryDraw(WHITE, n.x, n.y, n.x + 1, n.y + 1);
 			}
 			break;
 		}
@@ -618,8 +625,7 @@ static void cursorPosCallback(GLFWwindow *win, double fx, double fy)
 		break;
 	case TOOL_MARQUEE:
 		if (session->tool.u.marquee.state == MARQUEE_STARTED) {
-			session->tool.u.marquee.max.x = x;
-			session->tool.u.marquee.max.y = y;
+			session->tool.u.marquee.max = nearest(point(x, y));
 		}
 		break;
 	default:
