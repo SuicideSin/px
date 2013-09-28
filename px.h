@@ -20,6 +20,17 @@ enum dstate {
 	DRAW_ENDED = 3
 };
 
+enum mstate {
+	MARQUEE_NONE,
+	MARQUEE_STARTED,
+	MARQUEE_ENDED
+};
+
+struct marquee {
+	struct point min, max;
+	enum mstate  state;
+};
+
 struct brush {
 	int          size;
 	enum dstate  drawing;
@@ -51,6 +62,7 @@ struct sprite {
 enum tool {
 	TOOL_BRUSH,
 	TOOL_SAMPLER,
+	TOOL_MARQUEE,
 	TOOL_MULTI
 };
 
@@ -75,7 +87,8 @@ struct session {
 	struct {
 		enum tool curr;
 		union {
-			struct brush brush;
+			struct brush   brush;
+			struct marquee marquee;
 		} u;
 	} tool;
 };

@@ -43,6 +43,7 @@ static void pause(GLFWwindow *, const union arg *);
 static void windowClose(GLFWwindow *, const union arg *);
 static void brushSize(GLFWwindow *, const union arg *);
 static void adjustFPS(GLFWwindow *, const union arg *);
+static void brush(GLFWwindow *, const union arg *);
 static void marquee(GLFWwindow *, const union arg *);
 
 struct session     *session;
@@ -327,14 +328,13 @@ static void drawCursor(GLFWwindow *win, int x, int y, enum tool t)
 		if (spriteWithinBoundary(session->sprite, x, y)) {
 			fillRect(cx, cy, cx + s, cy + s, session->fg);
 		} else {
-			boundaryDraw(GREY, cx, cy, s, s);
+			boundaryDraw(GREY, cx, cy, cx + s, cy + s);
 		}
 		break;
 	case TOOL_SAMPLER:
-		boundaryDraw(WHITE, cx, cy, s, s);
+		boundaryDraw(WHITE, cx, cy, cx + s, cy + s);
 		break;
-	case TOOL_MULTI:
-		{
+	case TOOL_MULTI: {
 			int frame = (cx - session->x) / sp->fw;
 			for (int i = 0; i < sp->nframes - frame; i++) {
 				fillRect(cx + i * sp->fw * session->zoom,
@@ -344,6 +344,18 @@ static void drawCursor(GLFWwindow *win, int x, int y, enum tool t)
 			}
 		}
 		break;
+	case TOOL_MARQUEE: {
+			struct marquee *m = &session->tool.u.marquee;
+			if (m->state > MARQUEE_NONE && m->max.x != -1 && m->max.y != -1) { // Draw marquee
+				glLogicOp(GL_INVERT);
+				boundaryDraw(GREY, m->min.x, m->min.y, m->max.x, m->max.y);
+				glLogicOp(GL_COPY);
+			}
+			if (m->state == MARQUEE_ENDED) {
+				boundaryDraw(WHITE, cx, cy, cx + 1, cy + 1);
+			}
+			break;
+		}
 	}
 }
 
@@ -480,6 +492,12 @@ static void paletteAddColor(int x, int y, struct rgba color)
 
 static void marquee(GLFWwindow *_, const union arg *arg)
 {
+	session->tool.curr            = TOOL_MARQUEE;
+	session->tool.u.marquee.state = MARQUEE_NONE;
+	session->tool.u.marquee.min.x = -1;
+	session->tool.u.marquee.min.y = -1;
+	session->tool.u.marquee.max.x = -1;
+	session->tool.u.marquee.max.y = -1;
 }
 
 static void center()
@@ -543,18 +561,37 @@ static void fbSizeCallback(GLFWwindow *win, int w, int h)
 
 static void mouseButtonCallback(GLFWwindow *win, int button, int action, int mods)
 {
-	if (action == GLFW_PRESS) {
-		double x, y;
+	double x, y;
 
-		glfwGetCursorPos(win, &x, &y);
+	glfwGetCursorPos(win, &x, &y);
 
-		if (mods & GLFW_MOD_CONTROL) {
-			pickColor(round(x), round(y));
-		} else {
-			spriteStartDrawing(session->sprite, floor(x), floor(y));
+	switch (session->tool.curr) {
+	case TOOL_BRUSH: {
+			if (action == GLFW_PRESS) {
+				spriteStartDrawing(session->sprite, floor(x), floor(y));
+			} else if (action == GLFW_RELEASE) {
+				spriteStopDrawing(session->sprite);
+			}
 		}
-	} else if (action == GLFW_RELEASE) {
-		spriteStopDrawing(session->sprite);
+		break;
+	case TOOL_MARQUEE: {
+			struct marquee *m = &session->tool.u.marquee;
+
+			if (m->state == MARQUEE_STARTED && action == GLFW_RELEASE) {
+				m->state = MARQUEE_ENDED;
+			} else {
+				m->min.x = floor(x);
+				m->min.y = floor(y);
+				m->state = MARQUEE_STARTED;
+			}
+		}
+		break;
+	case TOOL_SAMPLER: {
+			pickColor(round(x), round(y));
+		}
+		break;
+	case TOOL_MULTI:
+		break;
 	}
 }
 
@@ -571,9 +608,22 @@ static void cursorPosCallback(GLFWwindow *win, double fx, double fy)
 	}
 
 	struct sprite *s = session->sprite;
-	if (session->tool.u.brush.drawing == DRAW_STARTED || session->tool.u.brush.drawing == DRAW_DRAWING) {
-		spriteDraw(s, x, y);
-		session->tool.u.brush.drawing = DRAW_DRAWING;
+
+	switch (session->tool.curr) {
+	case TOOL_BRUSH:
+		if (session->tool.u.brush.drawing == DRAW_STARTED || session->tool.u.brush.drawing == DRAW_DRAWING) {
+			spriteDraw(s, x, y);
+			session->tool.u.brush.drawing = DRAW_DRAWING;
+		}
+		break;
+	case TOOL_MARQUEE:
+		if (session->tool.u.marquee.state == MARQUEE_STARTED) {
+			session->tool.u.marquee.max.x = x;
+			session->tool.u.marquee.max.y = y;
+		}
+		break;
+	default:
+		break;
 	}
 }
 
@@ -694,14 +744,14 @@ static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int 
 	}
 }
 
-static void boundaryDraw(struct rgba color, int x, int y, int w, int h)
+static void boundaryDraw(struct rgba color, int x1, int y1, int x2, int y2)
 {
 	glColor4ubv((GLubyte*)&color);
 	glBegin(GL_LINE_LOOP);
-	glVertex3f(x - 0.5,     y - 0.5, 0);
-	glVertex3f(x + w + 0.5, y - 0.5, 0);
-	glVertex3f(x + w + 0.5, y + h + 0.5, 0);
-	glVertex3f(x - 0.5,     y + h + 0.5, 0);
+	glVertex3f(x1 - 0.5,     y1 - 0.5, 0);
+	glVertex3f(x2 + 0.5, y1 - 0.5, 0);
+	glVertex3f(x2 + 0.5, y2 + 0.5, 0);
+	glVertex3f(x1 - 0.5,     y2 + 0.5, 0);
 	glEnd();
 }
 
@@ -714,16 +764,16 @@ static void drawBoundaries()
 			DARKGREY,
 			session->x + i * s->fw * session->zoom,
 			session->y,
-			s->fw * session->zoom,
-			s->fh * session->zoom
+			session->x + s->fw * session->zoom,
+			session->y + s->fh * session->zoom
 		);
 	}
 	boundaryDraw(
 		GREY,
 		session->x,
 		session->y,
-		s->fw * s->nframes * session->zoom,
-		s->fh * session->zoom
+		session->x + s->fw * s->nframes * session->zoom,
+		session->y + s->fh * session->zoom
 	);
 }
 
@@ -827,6 +877,7 @@ int main(int argc, char *argv[])
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glEnable(GL_TEXTURE_2D);
+		glEnable(GL_COLOR_LOGIC_OP);
 
 		glPushMatrix(); {
 			struct sprite *s = session->sprite;
