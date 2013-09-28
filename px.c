@@ -315,7 +315,7 @@ static bool spriteWithinBoundary(struct sprite *s, int x, int y)
 		session->y <= y && y < (session->y + s->fh * session->zoom);
 }
 
-static struct point nearest(struct point p)
+static struct point snap(struct point p)
 {
 	return (struct point){
 		.x = p.x - (p.x % session->zoom) + 0.5,
@@ -327,7 +327,7 @@ static void drawCursor(GLFWwindow *win, int x, int y, enum tool t)
 {
 	int s = session->tool.u.brush.size * session->zoom;
 
-	struct point n = nearest(point(x, y));
+	struct point n = snap(point(x, y));
 	struct sprite *sp = session->sprite;
 
 	switch (t) {
@@ -625,7 +625,7 @@ static void cursorPosCallback(GLFWwindow *win, double fx, double fy)
 		break;
 	case TOOL_MARQUEE:
 		if (session->tool.u.marquee.state == MARQUEE_STARTED) {
-			session->tool.u.marquee.max = nearest(point(x, y));
+			session->tool.u.marquee.max = snap(point(x, y));
 		}
 		break;
 	default:
