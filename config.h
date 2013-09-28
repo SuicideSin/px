@@ -18,6 +18,7 @@ static struct binding bindings[] = {
 	{0,                      GLFW_KEY_RIGHT,   GLFW_PRESS,    move,            { .p = {+50, 0} }},
 	{0,                      GLFW_KEY_DOWN,    GLFW_PRESS,    move,            { .p = {0, +50} }},
 	{0,                      GLFW_KEY_UP,      GLFW_PRESS,    move,            { .p = {0, -50} }},
+	{0,                      GLFW_KEY_M,       GLFW_PRESS,    marquee,         { 0 }},
 	{0,                      GLFW_KEY_SPACE,   GLFW_PRESS,    pan,             { true }},
 	{0,                      GLFW_KEY_SPACE,   GLFW_RELEASE,  pan,             { false }},
 	{0,                      GLFW_KEY_ESCAPE,  GLFW_PRESS,    windowClose,     { 0 }},

@@ -43,6 +43,7 @@ static void pause(GLFWwindow *, const union arg *);
 static void windowClose(GLFWwindow *, const union arg *);
 static void brushSize(GLFWwindow *, const union arg *);
 static void adjustFPS(GLFWwindow *, const union arg *);
+static void marquee(GLFWwindow *, const union arg *);
 
 struct session     *session;
 struct palette     *palette;
@@ -190,6 +191,18 @@ static void spriteResizeFrame(struct sprite *s, int w, int h)
 	s->texture = textureGen(w, h, s->pixels);
 }
 
+static void brush(GLFWwindow *_w, const union arg *_a)
+{
+	session->tool.curr            = TOOL_BRUSH;
+	session->tool.u.brush.size    = +1;
+	session->tool.u.brush.prev.x  = -1;
+	session->tool.u.brush.prev.y  = -1;
+	session->tool.u.brush.curr.x  = -1;
+	session->tool.u.brush.curr.y  = -1;
+	session->tool.u.brush.drawing = false;
+	session->tool.u.brush.color   = TRANSPARENT;
+}
+
 static struct sprite sprite(int fw, int fh, uint8_t *pixels, int start, int end)
 {
 	struct sprite s = (struct sprite){
@@ -197,12 +210,6 @@ static struct sprite sprite(int fw, int fh, uint8_t *pixels, int start, int end)
 		.texture      = 0,
 		.fb           = fbGen(),
 		.dirty        = false,
-		.draw.prev.x  = -1,
-		.draw.prev.y  = -1,
-		.draw.curr.x  = -1,
-		.draw.curr.y  = -1,
-		.draw.drawing = false,
-		.draw.color   = TRANSPARENT,
 		.fw           = fw,
 		.fh           = fh,
 		.nframes      = 0,
@@ -306,27 +313,27 @@ static bool spriteWithinBoundary(struct sprite *s, int x, int y)
 		session->y <= y && y < (session->y + s->fh * session->zoom);
 }
 
-static void drawCursor(GLFWwindow *win, int x, int y, enum cursor c)
+static void drawCursor(GLFWwindow *win, int x, int y, enum tool t)
 {
-	int s = session->brush.size * session->zoom;
+	int s = session->tool.u.brush.size * session->zoom;
 
 	int cx = x - (x % session->zoom) + 0.5;
 	int cy = y - (y % session->zoom) + 0.5;
 
 	struct sprite *sp = session->sprite;
 
-	switch (c) {
-	case CURSOR_DEFAULT:
+	switch (t) {
+	case TOOL_BRUSH:
 		if (spriteWithinBoundary(session->sprite, x, y)) {
 			fillRect(cx, cy, cx + s, cy + s, session->fg);
 		} else {
 			boundaryDraw(GREY, cx, cy, s, s);
 		}
 		break;
-	case CURSOR_SAMPLER:
+	case TOOL_SAMPLER:
 		boundaryDraw(WHITE, cx, cy, s, s);
 		break;
-	case CURSOR_MULTI:
+	case TOOL_MULTI:
 		{
 			int frame = (cx - session->x) / sp->fw;
 			for (int i = 0; i < sp->nframes - frame; i++) {
@@ -348,21 +355,23 @@ static void spriteDraw(struct sprite *s, int x, int y)
 	x /= session->zoom;
 	y /= session->zoom;
 
-	y += session->brush.size;
+	y += session->tool.u.brush.size;
 
 	y = session->h - y;
 
-	s->draw.prev = s->draw.curr;
-	s->draw.curr.x = x;
-	s->draw.curr.y = y;
+	// TODO(cloudhead): put this in a function
+	session->tool.u.brush.prev = session->tool.u.brush.curr;
+	session->tool.u.brush.curr.x = x;
+	session->tool.u.brush.curr.y = y;
+
 	s->dirty = true;
 }
 
 static void spritePaint(struct sprite *s, int x, int y, int x1, int y1)
 {
-	int size = session->brush.size;
+	int size = session->tool.u.brush.size;
 
-	if (s->draw.drawing > DRAW_STARTED) {
+	if (session->tool.u.brush.drawing > DRAW_STARTED) {
 		int dx = abs(x1 - x);
 		int dy = abs(y1 - y);
 		int sx = x < x1 ? 1 : -1;
@@ -402,16 +411,16 @@ static void spriteRender(struct sprite *s)
 
 	glColor4ubv((GLubyte*)&session->fg);
 
-	int x  = s->draw.curr.x;
-	int y  = s->draw.curr.y;
-	int x1 = s->draw.prev.x;
-	int y1 = s->draw.prev.y;
+	int x  = session->tool.u.brush.curr.x;
+	int y  = session->tool.u.brush.curr.y;
+	int x1 = session->tool.u.brush.prev.x;
+	int y1 = session->tool.u.brush.prev.y;
 
-	switch (session->cursor) {
-	case CURSOR_DEFAULT:
+	switch (session->tool.curr) {
+	case TOOL_BRUSH:
 		spritePaint(s, x, y, x1, y1);
 		break;
-	case CURSOR_MULTI:
+	case TOOL_MULTI:
 		for (int i = 0; i < s->nframes; i++) {
 			spritePaint(s, x + i * s->fw, y, x1 + i * s->fw, y1);
 		}
@@ -437,12 +446,12 @@ static void spriteStartDrawing(struct sprite *s, int x, int y)
 		return;
 
 	spriteDraw(s, x, y);
-	s->draw.drawing = DRAW_STARTED;
+	session->tool.u.brush.drawing = DRAW_STARTED;
 }
 
 static void spriteStopDrawing(struct sprite *s)
 {
-	s->draw.drawing = DRAW_ENDED;
+	session->tool.u.brush.drawing = DRAW_ENDED;
 	spriteSnapshot(s);
 }
 
@@ -467,6 +476,10 @@ static void pickColor(int x, int y)
 static void paletteAddColor(int x, int y, struct rgba color)
 {
 	fillRect(x, y, x + palette->size, y + palette->size, color);
+}
+
+static void marquee(GLFWwindow *_, const union arg *arg)
+{
 }
 
 static void center()
@@ -558,9 +571,9 @@ static void cursorPosCallback(GLFWwindow *win, double fx, double fy)
 	}
 
 	struct sprite *s = session->sprite;
-	if (s->draw.drawing == DRAW_STARTED || s->draw.drawing == DRAW_DRAWING) {
+	if (session->tool.u.brush.drawing == DRAW_STARTED || session->tool.u.brush.drawing == DRAW_DRAWING) {
 		spriteDraw(s, x, y);
-		s->draw.drawing = DRAW_DRAWING;
+		session->tool.u.brush.drawing = DRAW_DRAWING;
 	}
 }
 
@@ -596,10 +609,10 @@ static void setupPalette()
 
 static void brushSize(GLFWwindow *_, const union arg *arg)
 {
-	session->brush.size += arg->i;
+	session->tool.u.brush.size += arg->i;
 
-	if (session->brush.size < 1)
-		session->brush.size = 1;
+	if (session->tool.u.brush.size < 1)
+		session->tool.u.brush.size = 1;
 }
 
 static void zoom(GLFWwindow *_, const union arg *arg)
@@ -674,10 +687,10 @@ static void keyCallback(GLFWwindow *win, int key, int scancode, int action, int 
 		}
 	}
 	if (key == GLFW_KEY_LEFT_CONTROL) {
-		session->cursor = (action == GLFW_PRESS) ? CURSOR_SAMPLER : CURSOR_DEFAULT;
+		session->tool.curr = (action == GLFW_PRESS) ? TOOL_SAMPLER : TOOL_BRUSH;
 	}
 	if (key == GLFW_KEY_LEFT_SHIFT) {
-		session->cursor = (action == GLFW_PRESS) ? CURSOR_MULTI : CURSOR_DEFAULT;
+		session->tool.curr = (action == GLFW_PRESS) ? TOOL_MULTI : TOOL_BRUSH;
 	}
 }
 
@@ -763,7 +776,6 @@ int main(int argc, char *argv[])
 	session->offx       = 0;
 	session->offy       = 0;
 	session->zoom       = 1;
-	session->brush.size = 1;
 	session->paused     = true;
 	session->fg         = WHITE;
 	session->bg         = WHITE;
@@ -795,6 +807,7 @@ int main(int argc, char *argv[])
 	fbClear();
 	setupPalette();
 	setFgColor(WHITE);
+	brush(window, NULL);
 
 	while (!glfwWindowShouldClose(window)) {
 		double mx, my;
@@ -840,7 +853,7 @@ int main(int argc, char *argv[])
 		glPopMatrix();
 
 		textureDraw(palette->texture, palette->size, palette->h, 0, 0, palette->size, palette->h, 0, 0);
-		drawCursor(window, floor(mx), floor(my), session->cursor);
+		drawCursor(window, floor(mx), floor(my), session->tool.curr);
 
 		glDisable(GL_TEXTURE_2D);
 		glFlush();

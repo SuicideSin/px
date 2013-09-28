@@ -9,10 +9,6 @@ struct palette {
 	uint8_t *pixels;
 };
 
-struct brush {
-	int size;
-};
-
 struct point {
 	int x;
 	int y;
@@ -24,13 +20,8 @@ enum dstate {
 	DRAW_ENDED = 3
 };
 
-enum cursor {
-	CURSOR_DEFAULT,
-	CURSOR_SAMPLER,
-	CURSOR_MULTI
-};
-
-struct draw {
+struct brush {
+	int          size;
 	enum dstate  drawing;
 	struct rgba  color;
 	struct point curr;
@@ -51,11 +42,16 @@ struct sprite {
 	int             fw;
 	int             fh;
 	int             nframes;
-	struct draw     draw;
 	void            *image;
 	int             snapshot;
 	struct snapshot *snapshots;
 	int             nsnapshots;
+};
+
+enum tool {
+	TOOL_BRUSH,
+	TOOL_SAMPLER,
+	TOOL_MULTI
 };
 
 struct session {
@@ -73,10 +69,15 @@ struct session {
 	char          *filepath;
 	struct sprite *sprites;
 	struct sprite *sprite;
-	struct brush  brush;
 	struct rgba   fg;
 	struct rgba   bg;
-	enum cursor   cursor;
+
+	struct {
+		enum tool curr;
+		union {
+			struct brush brush;
+		} u;
+	} tool;
 };
 
 union arg {
