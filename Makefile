@@ -8,7 +8,7 @@ TARGET  := px
 
 all: $(TARGET)
 
-%.o: %.c
+%.o: %.c glyphs.h
 	@echo "cc   $< => $@"
 	@$(CC) -c $(CFLAGS) $(INCS) -o $@ $<
 
@@ -23,7 +23,15 @@ $(TARGET): $(OBJ)
 
 -include $(OBJ:.o=.d)
 
+glyphs: glyphs.h
+
+glyphs.h: glyphs.tga
+	@echo "glyphs.tga => glyphs.h"
+	@$(CC) -I./ glyphs/glyphs.c tga.c -o glyphs/glyphs
+	@glyphs/glyphs > glyphs.h
+
 clean:
+	@rm glyphs.h glyphs/glyphs
 	@rm -f $(OBJ) *.d
 	@[ -f $(TARGET) ] && rm $(TARGET)
 

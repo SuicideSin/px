@@ -1,5 +1,9 @@
 *.d
 *.o
+*.tga
 tmp
 px
 tags
+glyphs.h
+glyphs/glyphs
+TODO

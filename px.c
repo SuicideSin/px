@@ -16,6 +16,7 @@
 #include "texture.h"
 #include "px.h"
 #include "tga.h"
+#include "glyphs.h"
 
 #define PX_NAME "px"
 #define PX_MAX_LOG_SIZE 128
