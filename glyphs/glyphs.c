@@ -13,7 +13,8 @@ int main(void)
 
 	int n = t->width * t->height;
 
-	printf("uint32_t glyphs[] = {\n");
+	printf("int glyphsWidth = %d;", t->width);
+	printf("uint32_t glyphsData[] = {\n");
 
 	for (int i = 0; i < n; i++) {
 		printf("0x%x", t->data[i]);

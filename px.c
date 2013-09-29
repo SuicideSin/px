@@ -34,6 +34,7 @@ static void paletteAddColor(int x, int y, struct rgba color);
 static void boundaryDraw(struct rgba color, int x, int y, int w, int h);
 static void setupPalette();
 static void createFrame(GLFWwindow *, const union arg *);
+static void spriteRenderFrame(struct sprite *s, int frame);
 static void saveCopy(GLFWwindow *, const union arg *);
 static void save(GLFWwindow *, const union arg *);
 static void move(GLFWwindow *, const union arg *);
@@ -48,8 +49,9 @@ static void adjustFPS(GLFWwindow *, const union arg *);
 static void brush(GLFWwindow *, const union arg *);
 static void marquee(GLFWwindow *, const union arg *);
 
-struct session     *session;
-struct palette     *palette;
+struct session *session;
+struct palette *palette;
+struct sprite  glyphs;
 
 #include "config.h"
 
@@ -77,6 +79,30 @@ static void fatal(const char *err, ...)
 	fprintf(stderr, "%s: fatal: %s\n", PX_NAME, msg);
 
 	exit(EXIT_FAILURE);
+}
+
+static void drawGlyph(int glyph, int x, int y)
+{
+	glPushMatrix();
+	glTranslatef(x, y, 0);
+	textureDraw(
+		glyphs.texture,
+		glyphs.fw * glyphs.nframes,
+		glyphs.fh,
+		(glyph - 32) * (glyphs.fw + 1),
+		0,
+		glyphs.fw,
+		glyphs.fh,
+		0, 0
+	);
+	glPopMatrix();
+}
+
+static void drawGlyphs(char *str, int x, int y)
+{
+	for (int i = 0; i < strlen(str); i++) {
+		drawGlyph(str[i], x + i * (glyphs.fw + 1), y);
+	}
 }
 
 static void fillRect(int x1, int y1, int x2, int y2, struct rgba color)
@@ -451,13 +477,18 @@ static void spriteRender(struct sprite *s)
 	s->dirty = false;
 }
 
+static void spriteRenderFrame(struct sprite *s, int frame)
+{
+	textureDraw(s->texture, s->fw * s->nframes, s->fh, frame * s->fw, 0, s->fw, s->fh, 0, 0);
+}
+
 static void spriteRenderCurrentFrame(struct sprite *s)
 {
 	double elapsed = glfwGetTime() - session->started;
 	double frac = session->fps * elapsed;
 	int frame = (int)floor(frac) % s->nframes;
 
-	textureDraw(s->texture, s->fw * s->nframes, s->fh, frame * s->fw, 0, s->fw, s->fh, 0, 0);
+	spriteRenderFrame(s, frame);
 }
 
 static void spriteStartDrawing(struct sprite *s, int x, int y)
@@ -802,6 +833,11 @@ static void createFilename(char **filename)
 	sprintf(*filename, "%s.tga", timestr);
 }
 
+static void glyphsInit()
+{
+	glyphs = sprite(7, 14, (uint8_t *)glyphsData, 0, glyphsWidth);
+}
+
 int main(int argc, char *argv[])
 {
 	GLFWwindow* window;
@@ -861,6 +897,9 @@ int main(int argc, char *argv[])
 	palette->texture = 0;
 	palette->fb = fbGen();
 
+	// Glyphs
+	glyphsInit();
+
 	fbClear();
 	setupPalette();
 	setFgColor(WHITE);
@@ -912,6 +951,10 @@ int main(int argc, char *argv[])
 
 		textureDraw(palette->texture, palette->size, palette->h, 0, 0, palette->size, palette->h, 0, 0);
 		drawCursor(window, floor(mx), floor(my), session->tool.curr);
+
+		char info[64];
+		sprintf(info, "%dx%dx%d", session->sprite->fw, session->sprite->fh, session->sprite->nframes);
+		drawGlyphs(info, session->x, session->y + session->sprite->fh * session->zoom + 5);
 
 		glDisable(GL_TEXTURE_2D);
 		glFlush();
