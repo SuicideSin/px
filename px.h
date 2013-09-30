@@ -23,7 +23,8 @@ enum dstate {
 enum mstate {
 	MARQUEE_NONE,
 	MARQUEE_STARTED,
-	MARQUEE_ENDED
+	MARQUEE_ENDED,
+	MARQUEE_CUT
 };
 
 struct marquee {

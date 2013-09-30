@@ -345,8 +345,8 @@ static bool spriteWithinBoundary(struct sprite *s, int x, int y)
 static struct point snap(struct point p)
 {
 	return (struct point){
-		.x = p.x - (p.x % session->zoom) + 0.5,
-		.y = p.y - (p.y % session->zoom) + 0.5
+		.x = p.x - (p.x % session->zoom),
+		.y = p.y - (p.y % session->zoom)
 	};
 }
 
@@ -387,6 +387,8 @@ static void drawCursor(GLFWwindow *win, int x, int y, enum tool t)
 			}
 			if (m->state == MARQUEE_ENDED) {
 				boundaryDraw(WHITE, n.x, n.y, n.x + 1, n.y + 1);
+			} else if (m->state == MARQUEE_CUT) {
+				textureDraw(sp->texture, sp->fw * sp->nframes, sp->fh, m->min.x, m->min.y, m->max.x, m->max.y, n.x, n.y);
 			}
 			break;
 		}
@@ -618,6 +620,12 @@ static void mouseButtonCallback(GLFWwindow *win, int button, int action, int mod
 
 			if (m->state == MARQUEE_STARTED && action == GLFW_RELEASE) {
 				m->state = MARQUEE_ENDED;
+			} else if (m->state == MARQUEE_ENDED) { // Move selection
+				if (action == GLFW_PRESS) {
+					m->state = MARQUEE_CUT;
+				} else {
+					m->state = MARQUEE_ENDED;
+				}
 			} else {
 				m->min.x = floor(x);
 				m->min.y = floor(y);
@@ -658,6 +666,7 @@ static void cursorPosCallback(GLFWwindow *win, double fx, double fy)
 	case TOOL_MARQUEE:
 		if (session->tool.u.marquee.state == MARQUEE_STARTED) {
 			session->tool.u.marquee.max = snap(point(x, y));
+		} else if (session->tool.u.marquee.state == MARQUEE_CUT) {
 		}
 		break;
 	default:
@@ -786,10 +795,10 @@ static void boundaryDraw(struct rgba color, int x1, int y1, int x2, int y2)
 {
 	glColor4ubv((GLubyte*)&color);
 	glBegin(GL_LINE_LOOP);
-	glVertex3f(x1 - 0.5,     y1 - 0.5, 0);
+	glVertex3f(x1 - 0.5, y1 - 0.5, 0);
 	glVertex3f(x2 + 0.5, y1 - 0.5, 0);
-	glVertex3f(x2 + 0.5, y2 + 0.5, 0);
-	glVertex3f(x1 - 0.5,     y2 + 0.5, 0);
+	glVertex3f(x2 + 1.0, y2 + 0.5, 0);
+	glVertex3f(x1 - 0.5, y2 + 0.5, 0);
 	glEnd();
 }
 
