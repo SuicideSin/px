@@ -369,7 +369,7 @@ static void drawCursor(GLFWwindow *win, int x, int y, enum tool t)
 		boundaryDraw(WHITE, n.x, n.y, n.x + s, n.y + s);
 		break;
 	case TOOL_MULTI: {
-			int frame = (n.x - session->x) / sp->fw;
+			int frame = (n.x - session->x) / sp->fw / session->zoom;
 			for (int i = 0; i < sp->nframes - frame; i++) {
 				fillRect(n.x + i * sp->fw * session->zoom,
 						 n.y,
@@ -607,6 +607,7 @@ static void mouseButtonCallback(GLFWwindow *win, int button, int action, int mod
 	glfwGetCursorPos(win, &x, &y);
 
 	switch (session->tool.curr) {
+	case TOOL_MULTI:
 	case TOOL_BRUSH: {
 			if (action == GLFW_PRESS) {
 				spriteStartDrawing(session->sprite, floor(x), floor(y));
@@ -637,8 +638,6 @@ static void mouseButtonCallback(GLFWwindow *win, int button, int action, int mod
 			pickColor(round(x), round(y));
 		}
 		break;
-	case TOOL_MULTI:
-		break;
 	}
 }
 
@@ -658,6 +657,7 @@ static void cursorPosCallback(GLFWwindow *win, double fx, double fy)
 
 	switch (session->tool.curr) {
 	case TOOL_BRUSH:
+	case TOOL_MULTI:
 		if (session->tool.u.brush.drawing == DRAW_STARTED || session->tool.u.brush.drawing == DRAW_DRAWING) {
 			spriteDraw(s, x, y);
 			session->tool.u.brush.drawing = DRAW_DRAWING;
