@@ -4,21 +4,30 @@
 //
 #define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
+#include <stdlib.h>
 
-void textureDraw(id, tw, th, x, y, w, h, sx, sy)
-	GLuint id;           // Texture id
-	int    tw; int   th; // Width & height of the texture
+#include "texture.h"
+
+void textureDraw(t, sx, sy)
+	struct texture  *t;  // Texture pointer
+	float  sx; float sy; // Screen position to draw at
+{
+	textureDrawRect(t, 0, 0, t->w, t->h, sx, sy);
+}
+
+void textureDrawRect(t, x, y, w, h, sx, sy)
+	struct texture  *t;  // Texture pointer
 	int    x;  int   y;  // Position in the image to draw
 	int    w;  int   h;  // Width & height of the image to draw
 	float  sx; float sy; // Screen position to draw at
 {
-	float rx = (float)x / (float)tw,
-		  ry = (float)y / (float)th;
+	float rx = (float)x / (float)t->w,
+		  ry = (float)y / (float)t->h;
 
-	float rw = (float)w / (float)tw,
-		  rh = (float)h / (float)th;
+	float rw = (float)w / (float)t->w,
+		  rh = (float)h / (float)t->h;
 
-	glBindTexture(GL_TEXTURE_2D, id);
+	glBindTexture(GL_TEXTURE_2D, t->id);
 
 	glBegin(GL_QUADS);
 	glTexCoord2f(rx,      ry);      glVertex2f(sx,     sy);
@@ -30,13 +39,16 @@ void textureDraw(id, tw, th, x, y, w, h, sx, sy)
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-GLuint textureGen(int w, int h, uint8_t *data)
+struct texture *textureGen(int w, int h, uint8_t *data)
 {
-	GLuint id;
+	struct texture *t = malloc(sizeof(*t));
 
-	glGenTextures(1, &id);
+	t->w    = w;
+	t->h    = h;
+	t->data = data;
 
-	glBindTexture(GL_TEXTURE_2D, id);
+	glGenTextures(1, &t->id);
+	glBindTexture(GL_TEXTURE_2D, t->id);
 
 	// Don't interpolate when resizing
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -60,7 +72,7 @@ GLuint textureGen(int w, int h, uint8_t *data)
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-	return id;
+	return t;
 }
 
 GLuint fbGen()

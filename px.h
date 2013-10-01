@@ -2,11 +2,11 @@
 // px.h
 //
 struct palette {
-	GLuint  texture;
-	GLuint  fb;
-	int     h;
-	int     size;
-	uint8_t *pixels;
+	struct texture *texture;
+	GLuint         fb;
+	int            h;
+	int            size;
+	uint8_t        *pixels;
 };
 
 struct point {
@@ -47,7 +47,7 @@ struct snapshot {
 };
 
 struct sprite {
-	GLuint          texture;
+	struct texture  *texture;
 	GLuint          fb;
 	uint8_t         *pixels;
 	bool            dirty;

@@ -85,10 +85,8 @@ static void drawGlyph(int glyph, int x, int y)
 {
 	glPushMatrix();
 	glTranslatef(x, y, 0);
-	textureDraw(
+	textureDrawRect(
 		glyphs.texture,
-		glyphs.fw * glyphs.nframes,
-		glyphs.fh,
 		(glyph - 32) * (glyphs.fw + 1),
 		0,
 		glyphs.fw,
@@ -117,10 +115,10 @@ static void fbClear()
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 }
 
-static void fbAttach(GLuint fb, GLuint tex)
+static void fbAttach(GLuint fb, struct texture *t)
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, fb);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, t->id, 0);
 
 	GLenum status;
 
@@ -215,7 +213,7 @@ static void spriteResizeFrame(struct sprite *s, int w, int h)
 	memset(s->pixels, 0, h * stride);
 
 	if (s->texture != 0)
-		glDeleteTextures(1, &s->texture);
+		glDeleteTextures(1, &s->texture->id);
 
 	s->texture = textureGen(w, h, s->pixels);
 }
@@ -283,7 +281,7 @@ static void createFrame()
 	memset(s->pixels, 0, s->fh * stride);
 
 	if (s->texture)
-		glDeleteTextures(1, &s->texture);
+		glDeleteTextures(1, &s->texture->id);
 
 	s->texture = textureGen(w, s->fh, s->pixels);
 	fbAttach(s->fb, s->texture);
@@ -388,7 +386,7 @@ static void drawCursor(GLFWwindow *win, int x, int y, enum tool t)
 			if (m->state == MARQUEE_ENDED) {
 				boundaryDraw(WHITE, n.x, n.y, n.x + 1, n.y + 1);
 			} else if (m->state == MARQUEE_CUT) {
-				textureDraw(sp->texture, sp->fw * sp->nframes, sp->fh, m->min.x, m->min.y, m->max.x, m->max.y, n.x, n.y);
+				textureDrawRect(sp->texture, m->min.x, m->min.y, m->max.x, m->max.y, n.x, n.y);
 			}
 			break;
 		}
@@ -481,7 +479,7 @@ static void spriteRender(struct sprite *s)
 
 static void spriteRenderFrame(struct sprite *s, int frame)
 {
-	textureDraw(s->texture, s->fw * s->nframes, s->fh, frame * s->fw, 0, s->fw, s->fh, 0, 0);
+	textureDrawRect(s->texture, frame * s->fw, 0, s->fw, s->fh, 0, 0);
 }
 
 static void spriteRenderCurrentFrame(struct sprite *s)
@@ -686,7 +684,7 @@ static void setupPalette()
 	memset(palette->pixels, 0, palette->h * stride);
 
 	if (palette->texture)
-		glDeleteTextures(1, &palette->texture);
+		glDeleteTextures(1, &palette->texture->id);
 
 	palette->texture = textureGen(s, palette->h, palette->pixels);
 
@@ -949,7 +947,7 @@ int main(int argc, char *argv[])
 			glTranslatef(session->x, session->y, 0.0f);
 			glScalef(session->zoom, session->zoom, 1.0f);
 
-			textureDraw(s->texture, s->fw * s->nframes, s->fh, 0, 0, s->fw * s->nframes, s->fh, 0, 0);
+			textureDraw(s->texture, 0, 0);
 
 			if (s->nframes > 1 && !session->paused) {
 				glTranslatef(-s->fw - 0.5, 0, 0.0f);
@@ -958,7 +956,7 @@ int main(int argc, char *argv[])
 		}
 		glPopMatrix();
 
-		textureDraw(palette->texture, palette->size, palette->h, 0, 0, palette->size, palette->h, 0, 0);
+		textureDraw(palette->texture, 0, 0);
 		drawCursor(window, floor(mx), floor(my), session->tool.curr);
 
 		char info[64];
