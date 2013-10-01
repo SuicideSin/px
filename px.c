@@ -43,6 +43,7 @@ static void saveCopy(GLFWwindow *, const union arg *);
 static void save(GLFWwindow *, const union arg *);
 static void move(GLFWwindow *, const union arg *);
 static void pan(GLFWwindow *, const union arg *);
+static void onion(GLFWwindow *, const union arg *);
 static void zoom(GLFWwindow *, const union arg *);
 static void undo(GLFWwindow *, const union arg *);
 static void redo(GLFWwindow *, const union arg *);
@@ -116,7 +117,7 @@ static void fillRect(int x1, int y1, int x2, int y2, struct rgba color)
 static void fbClear()
 {
 	glClear(GL_COLOR_BUFFER_BIT);
-	glClearColor(0.0, 0.0, 0.0, 1.0);
+	glClearColor(0.0, 0.0, 0.0, 0.0);
 }
 
 static void fbAttach(GLuint fb, struct texture *t)
@@ -174,7 +175,7 @@ static void spriteRestoreSnapshot(struct sprite *s, int snapshot)
 	
 	glBindFramebuffer(GL_FRAMEBUFFER, s->fb);
 	glClear(GL_COLOR_BUFFER_BIT);
-	glClearColor(0.0, 0.0, 0.0, 1.0);
+	glClearColor(0.0, 0.0, 0.0, 0.0);
 	glDrawPixels(snap.w, snap.h, GL_RGBA, GL_UNSIGNED_BYTE, snap.pixels);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
@@ -383,9 +384,11 @@ static void drawCursor(GLFWwindow *win, int x, int y, enum tool t)
 	case TOOL_MARQUEE: {
 			struct marquee *m = &session->tool.u.marquee;
 			if (m->state > MARQUEE_NONE && m->max.x != -1 && m->max.y != -1) { // Draw marquee
+				fillRect(m->min.x, m->min.y, m->max.x, m->max.y, LIGHT);
+				glEnable(GL_COLOR_LOGIC_OP);
 				glLogicOp(GL_INVERT);
 				boundaryDraw(GREY, m->min.x, m->min.y, m->max.x, m->max.y);
-				glLogicOp(GL_COPY);
+				glDisable(GL_COLOR_LOGIC_OP);
 			}
 			if (m->state == MARQUEE_ENDED) {
 				boundaryDraw(WHITE, n.x, n.y, n.x + 1, n.y + 1);
@@ -575,6 +578,16 @@ static void move(GLFWwindow *_, const union arg *arg)
 	session->offy += arg->p.y;
 
 	center();
+}
+
+bool onionMode;
+static void onion(GLFWwindow *win, const union arg *arg)
+{
+	if (arg->b) {
+		onionMode = true;
+	} else {
+		onionMode = false;
+	}
 }
 
 static struct point* pan_offset;
@@ -935,10 +948,9 @@ int main(int argc, char *argv[])
 
 		glLoadIdentity();
 		glTranslatef(0, 0, 0);
+		glEnable(GL_TEXTURE_2D);
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glEnable(GL_TEXTURE_2D);
-		glEnable(GL_COLOR_LOGIC_OP);
 		glDisable(GL_DEPTH_TEST);
 
 		glPushMatrix(); {
@@ -947,15 +959,25 @@ int main(int argc, char *argv[])
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 			glClear(GL_COLOR_BUFFER_BIT);
-			glClearColor(0.0, 0.0, 0.0, 1.0);
+			glClearColor(0.0, 0.0, 0.0, 0.0);
+			glColor4f(1.0, 1.0, 1.0, 1.0);
 
 			drawBoundaries();
 
 			glTranslatef(session->x, session->y, 0.0f);
 			glScalef(zoom, zoom, 1.0f);
 
+			glColor4f(1.0, 1.0, 1.0, 1.0);
 			textureDraw(s->texture, 0, 0);
 
+			if (onionMode) {
+				int frame = (mx - session->x) / s->fw / zoom;
+				glPushMatrix();
+				glTranslatef(frame * s->fw, 0, 0);
+				glColor4f(0.5, 0.5, 0.5, 0.5);
+				spriteRenderFrame(s, frame - 1);
+				glPopMatrix();
+			}
 			if (s->nframes > 1 && !session->paused) {
 				glTranslatef(-s->fw - 0.5, 0, 0.0f);
 				spriteRenderCurrentFrame(s);
@@ -963,6 +985,7 @@ int main(int argc, char *argv[])
 		}
 		glPopMatrix();
 
+		glColor4f(1.0, 1.0, 1.0, 1.0);
 		textureDraw(palette->texture, 0, 0);
 		drawCursor(window, floor(mx), floor(my), session->tool.curr);
 
@@ -972,6 +995,7 @@ int main(int argc, char *argv[])
 		sprintf(info, "%dHz  %d%%", session->fps, session->zoom * 100);
 		drawGlyphs(info, session->w - strlen(info) * GW, session->h - GH);
 
+		glDisable(GL_BLEND);
 		glDisable(GL_TEXTURE_2D);
 		glFlush();
 		glfwSwapBuffers(window);
