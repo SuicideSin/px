@@ -22,6 +22,10 @@
 #define PX_MAX_LOG_SIZE 128
 #define LENGTH(x) (sizeof(x) / sizeof(x[0]))
 
+// Glyph height & width
+#define GH 14
+#define GW 8
+
 #define point(x, y)      ((struct point){(x), (y)})
 #define rgba(r, g, b, a) ((struct rgba){r, g, b, a})
 #define WHITE            rgba(255, 255, 255, 255)
@@ -915,6 +919,10 @@ int main(int argc, char *argv[])
 	while (!glfwWindowShouldClose(window)) {
 		double mx, my;
 		int    w, h;
+		char   info[64];
+		
+		struct sprite *s = session->sprite;
+		int zoom = session->zoom;
 
 		glfwGetFramebufferSize(window, &w, &h);
 		glfwGetCursorPos(window, &mx, &my);
@@ -931,10 +939,9 @@ int main(int argc, char *argv[])
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glEnable(GL_TEXTURE_2D);
 		glEnable(GL_COLOR_LOGIC_OP);
+		glDisable(GL_DEPTH_TEST);
 
 		glPushMatrix(); {
-			struct sprite *s = session->sprite;
-
 			glBindFramebuffer(GL_FRAMEBUFFER, s->fb);
 			spriteRender(s);
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -945,7 +952,7 @@ int main(int argc, char *argv[])
 			drawBoundaries();
 
 			glTranslatef(session->x, session->y, 0.0f);
-			glScalef(session->zoom, session->zoom, 1.0f);
+			glScalef(zoom, zoom, 1.0f);
 
 			textureDraw(s->texture, 0, 0);
 
@@ -959,9 +966,11 @@ int main(int argc, char *argv[])
 		textureDraw(palette->texture, 0, 0);
 		drawCursor(window, floor(mx), floor(my), session->tool.curr);
 
-		char info[64];
-		sprintf(info, "%dx%dx%d", session->sprite->fw, session->sprite->fh, session->sprite->nframes);
-		drawGlyphs(info, session->x, session->y + session->sprite->fh * session->zoom + 5);
+		sprintf(info, "%dx%dx%d", s->fw, s->fh, s->nframes);
+		drawGlyphs(info, session->x, session->y + s->fh * zoom + 5);
+
+		sprintf(info, "%dHz  %d%%", session->fps, session->zoom * 100);
+		drawGlyphs(info, session->w - strlen(info) * GW, session->h - GH);
 
 		glDisable(GL_TEXTURE_2D);
 		glFlush();
