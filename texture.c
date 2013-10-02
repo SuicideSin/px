@@ -8,24 +8,22 @@
 
 #include "texture.h"
 
-void textureDraw(t, sx, sy)
-	struct texture  *t;  // Texture pointer
-	float  sx; float sy; // Screen position to draw at
+void textureDraw(struct texture *t, float sx, float sy)
 {
 	textureDrawRect(t, 0, 0, t->w, t->h, sx, sy);
 }
 
-void textureDrawRect(t, x, y, w, h, sx, sy)
-	struct texture  *t;  // Texture pointer
-	int    x;  int   y;  // Position in the image to draw
-	int    w;  int   h;  // Width & height of the image to draw
-	float  sx; float sy; // Screen position to draw at
+void textureDrawRect(
+	struct texture *t,  // Texture pointer
+	int   x,  int   y,  // Position in the image to draw
+	int   w,  int   h,  // Width & height of the image to draw
+	float sx, float sy) // Screen position to draw at
 {
 	float rx = (float)x / (float)t->w,
-		  ry = (float)y / (float)t->h;
+	      ry = (float)y / (float)t->h;
 
 	float rw = (float)w / (float)t->w,
-		  rh = (float)h / (float)t->h;
+	      rh = (float)h / (float)t->h;
 
 	glBindTexture(GL_TEXTURE_2D, t->id);
 
