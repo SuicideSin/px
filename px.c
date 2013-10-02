@@ -776,10 +776,9 @@ static void saveTo(const char *filename)
 
 static void saveCopy()
 {
-	size_t len = strlen(session->filepath);
-	char filename[len + 1 + 3]; // <filename>.001
+	char filename[64];
 
-	sprintf(filename, "%s.%.3d", session->filepath, 1);
+	sprintf(filename, "%s.%lu", session->filepath, time(NULL));
 	saveTo(filename);
 }
 
