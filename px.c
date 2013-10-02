@@ -999,7 +999,12 @@ int main(int argc, char *argv[])
 		glDisable(GL_TEXTURE_2D);
 		glFlush();
 		glfwSwapBuffers(window);
-		glfwPollEvents();
+
+		if (glfwGetWindowAttrib(window, GLFW_FOCUSED)) {
+			glfwPollEvents();
+		} else {
+			glfwWaitEvents();
+		}
 	}
 	glDeleteFramebuffers(1, &session->sprite->fb);
 	glfwDestroyWindow(window);
