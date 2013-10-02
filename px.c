@@ -32,6 +32,7 @@
 #define GREY             rgba(128, 128, 128, 255)
 #define DARKGREY         rgba(64, 64, 64, 255)
 #define TRANSPARENT      rgba(0, 0, 0, 0)
+#define LIGHT            rgba(255, 255, 255, 0)
 
 static struct rgba *spriteReadPixels(struct sprite *s);
 static void paletteAddColor(int x, int y, struct rgba color);
