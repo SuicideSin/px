@@ -3,7 +3,13 @@
 // texture manipulation
 //
 #define GL_GLEXT_PROTOTYPES
+
+#ifdef __APPLE__
+#include <OpenGL/gl.h>
+#else
 #include <GL/gl.h>
+#endif
+
 #include <stdlib.h>
 
 #include "texture.h"

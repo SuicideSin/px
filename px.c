@@ -1,10 +1,18 @@
 #define GL_GLEXT_PROTOTYPES
 
+#ifdef __APPLE__
+#include <OpenGL/gl.h>
+#include <OpenGL/glu.h>
+#include <OpenGL/glext.h>
+#else
 #include <GL/gl.h>
-#include <GL/glext.h>
 #include <GL/glu.h>
+#include <GL/glext.h>
+#endif
+
 #include <GLFW/glfw3.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
