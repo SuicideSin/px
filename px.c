@@ -181,7 +181,7 @@ static void spriteRestoreSnapshot(struct sprite *s, int snapshot)
 	s->snapshot = snapshot;
 
 	struct snapshot snap = s->snapshots[snapshot];
-	
+
 	glBindFramebuffer(GL_FRAMEBUFFER, s->fb);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glClearColor(0.0, 0.0, 0.0, 0.0);
@@ -941,7 +941,7 @@ int main(int argc, char *argv[])
 		double mx, my;
 		int    w, h;
 		char   info[64];
-		
+
 		struct sprite *s = session->sprite;
 		int zoom = session->zoom;
 
